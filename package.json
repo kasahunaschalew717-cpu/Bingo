@@ -1,0 +1,22 @@
+{
+  "name": "ardi-bingo-game",
+  "version": "1.0.0",
+  "description": "Ethiopian Parlor Bingo Game connected to Ardi Game Zone Wallet API",
+  "scripts": {
+    "build": "cd client && npm run build",
+    "server": "cd server && npm start",
+    "start": "node server/src/server.js",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev"
+  },
+  "keywords": [
+    "bingo",
+    "ethiopia",
+    "ardi",
+    "game-zone",
+    "telegram-mini-app",
+    "parlor-game"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}
