@@ -1,8 +1,15 @@
 export interface Player {
   playerRef: string;
   name: string;
+  ticketNumber?: number | null;
   spectating?: boolean;
   debited?: boolean;
+}
+
+export interface TakenTicket {
+  ticketNumber: number;
+  playerRef: string;
+  name: string;
 }
 
 export interface DeskGameInfo {
@@ -36,6 +43,7 @@ export interface BingoCell {
 
 export interface BingoCard {
   id: string;
+  ticketNumber?: number;
   cells: BingoCell[];
 }
 
@@ -67,6 +75,8 @@ export interface RoomState {
   countdown: number;
   playerCount: number;
   totalConnected: number;
+  ticketPoolSize?: number;
+  takenTickets?: TakenTicket[];
   players: Player[];
   currentBall: Ball | null;
   recentBalls: Ball[];

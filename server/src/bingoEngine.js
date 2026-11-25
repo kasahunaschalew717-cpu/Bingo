@@ -81,6 +81,29 @@ export function generateBingoCard(cardId = null) {
 }
 
 /**
+ * Generates a pool of numbered unique Bingo tickets (1..count) for parlor selection.
+ */
+export function generateTicketPool(count = 100) {
+  const pool = new Map();
+  const seenSignatures = new Set();
+
+  for (let num = 1; num <= count; num++) {
+    let card;
+    let sig;
+    do {
+      card = generateBingoCard(`#${num}`);
+      sig = card.cells.map((c) => c.number).join(',');
+    } while (seenSignatures.has(sig));
+
+    seenSignatures.add(sig);
+    card.ticketNumber = num;
+    pool.set(num, card);
+  }
+
+  return pool;
+}
+
+/**
  * Validates winning patterns against drawn numbers:
  * Win Condition: Any Line ONLY (5 Horizontal rows, 5 Vertical columns, 2 Diagonals)
  */

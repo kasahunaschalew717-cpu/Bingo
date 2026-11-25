@@ -2,7 +2,7 @@
 // Real-money multiplayer only (zero bots), persistent SQLite audit ledger,
 // automatic crash/abort refunds, and Win Condition: Any Line ONLY.
 import { randomBytes } from 'crypto';
-import { generateBingoCard, checkBingoWin, createBallDeck } from './bingoEngine.js';
+import { generateBingoCard, generateTicketPool, checkBingoWin, createBallDeck } from './bingoEngine.js';
 import { walletClient } from './walletClient.js';
 import { gameDb } from './db.js';
 import { config } from './config.js';
@@ -62,8 +62,12 @@ class BingoRoom {
     this.intermissionTimer = null;
     this.claimingLock = false;
 
+    // Ticket Pool (#1 - #100) for explicit ticket selection
+    this.ticketPoolSize = 100;
+    this.ticketPool = generateTicketPool(this.ticketPoolSize);
+
     // Players keyed by playerRef (supports seamless mobile reconnects!)
-    // value: { socketId, socket, token, playerRef, name, card, spectating, debited, debitRef, balance }
+    // value: { socketId, socket, token, playerRef, name, ticketNumber, card, spectating, debited, debitRef, balance }
     this.players = new Map();
 
     // Drawn numbers
@@ -79,6 +83,28 @@ class BingoRoom {
 
   _getSeatedPlayers() {
     return Array.from(this.players.values()).filter((p) => !p.spectating);
+  }
+
+  _getTakenTickets() {
+    const taken = [];
+    for (const p of this.players.values()) {
+      if (!p.spectating && typeof p.ticketNumber === 'number') {
+        taken.push({
+          ticketNumber: p.ticketNumber,
+          playerRef: p.playerRef,
+          name: p.name
+        });
+      }
+    }
+    return taken;
+  }
+
+  _assignNextAvailableTicketNumber() {
+    const used = new Set(this._getTakenTickets().map((t) => t.ticketNumber));
+    for (let n = 1; n <= this.ticketPoolSize; n++) {
+      if (!used.has(n)) return n;
+    }
+    return null;
   }
 
   getPublicState() {
@@ -103,9 +129,12 @@ class BingoRoom {
       countdown: this.countdown,
       playerCount: activeCount,
       totalConnected: this.players.size,
+      ticketPoolSize: this.ticketPoolSize,
+      takenTickets: this._getTakenTickets(),
       players: Array.from(this.players.values()).map((p) => ({
         playerRef: p.playerRef,
         name: p.name,
+        ticketNumber: p.ticketNumber,
         spectating: p.spectating,
         debited: p.debited
       })),
@@ -134,13 +163,17 @@ class BingoRoom {
     }
 
     const roundInFlight = this.status === 'LOCKING' || this.status === 'PLAYING' || this.status === 'FINISHED';
+    const ticketNumber = roundInFlight ? null : this._assignNextAvailableTicketNumber();
+    const card = ticketNumber ? this.ticketPool.get(ticketNumber) : generateBingoCard();
+
     const player = {
       socketId: socket.id,
       socket,
       token: session.token,
       playerRef,
       name: session.player.name,
-      card: generateBingoCard(),
+      ticketNumber,
+      card,
       spectating: roundInFlight,
       debited: false,
       debitRef: null,
@@ -179,16 +212,69 @@ class BingoRoom {
     }
   }
 
-  regenerateCard(socketId) {
+  previewTicket(socketId, ticketNumber) {
     const player = this._findBySocket(socketId);
-    if (player && !player.spectating && (this.status === 'WAITING' || this.status === 'COUNTDOWN')) {
-      player.card = generateBingoCard();
-      if (player.socket && player.socket.readyState === 1) {
-        player.socket.send(JSON.stringify({
-          type: 'CARD_UPDATED',
-          card: player.card
-        }));
-      }
+    if (!player) return;
+
+    const num = Number(ticketNumber);
+    if (!Number.isInteger(num) || num < 1 || num > this.ticketPoolSize) {
+      return;
+    }
+
+    const card = this.ticketPool.get(num);
+    const taken = this._getTakenTickets().find(
+      (t) => t.ticketNumber === num && t.playerRef !== player.playerRef
+    );
+
+    if (player.socket && player.socket.readyState === 1) {
+      player.socket.send(JSON.stringify({
+        type: 'TICKET_PREVIEW',
+        ticketNumber: num,
+        card,
+        takenBy: taken ? taken.name : null
+      }));
+    }
+  }
+
+  selectTicket(socketId, ticketNumber) {
+    const player = this._findBySocket(socketId);
+    if (!player) return { ok: false, message: 'Player not found in room.' };
+
+    if (player.spectating || (this.status !== 'WAITING' && this.status !== 'COUNTDOWN')) {
+      return { ok: false, message: 'Ticket selection is locked once the round starts.' };
+    }
+
+    const num = Number(ticketNumber);
+    if (!Number.isInteger(num) || num < 1 || num > this.ticketPoolSize) {
+      return { ok: false, message: `Choose a ticket between #1 and #${this.ticketPoolSize}.` };
+    }
+
+    const takenByOther = this._getTakenTickets().find(
+      (t) => t.ticketNumber === num && t.playerRef !== player.playerRef
+    );
+    if (takenByOther) {
+      return { ok: false, message: `Ticket #${num} is already taken by ${takenByOther.name}.` };
+    }
+
+    player.ticketNumber = num;
+    player.card = this.ticketPool.get(num);
+
+    if (player.socket && player.socket.readyState === 1) {
+      player.socket.send(JSON.stringify({
+        type: 'CARD_UPDATED',
+        ticketNumber: num,
+        card: player.card
+      }));
+    }
+
+    this._notifyState();
+    return { ok: true, ticketNumber: num };
+  }
+
+  regenerateCard(socketId) {
+    const nextNum = this._assignNextAvailableTicketNumber();
+    if (nextNum) {
+      this.selectTicket(socketId, nextNum);
     }
   }
 
@@ -577,18 +663,25 @@ class BingoRoom {
     this.totalPot = 0;
     this.claimingLock = false;
 
-    // Drop disconnected players, promote spectators & issue fresh cards for next round
+    // Generate a fresh 100-ticket pool for the next round
+    this.ticketPool = generateTicketPool(this.ticketPoolSize);
+
+    // Drop disconnected players, promote spectators & assign fresh tickets for next round
+    let nextNum = 1;
     for (const [playerRef, p] of this.players.entries()) {
       if (!p.socket || p.socket.readyState !== 1) {
         this.players.delete(playerRef);
         continue;
       }
-      p.card = generateBingoCard();
+      const assigned = nextNum <= this.ticketPoolSize ? nextNum++ : null;
+      p.ticketNumber = assigned;
+      p.card = assigned ? this.ticketPool.get(assigned) : generateBingoCard();
       p.spectating = false;
       p.debited = false;
       p.debitRef = null;
       p.socket.send(JSON.stringify({
         type: 'CARD_UPDATED',
+        ticketNumber: assigned,
         card: p.card
       }));
     }

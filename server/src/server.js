@@ -222,6 +222,7 @@ wss.on('connection', (ws) => {
             ws.send(JSON.stringify({
               type: 'ROOM_JOINED',
               tierId,
+              ticketNumber: player.ticketNumber,
               card: player.card,
               spectating: player.spectating,
               debited: player.debited,
@@ -234,6 +235,30 @@ wss.on('connection', (ws) => {
               code: err.code || 'AUTH_ERROR',
               message: err.message
             }));
+          }
+          break;
+        }
+
+        case 'PREVIEW_TICKET': {
+          if (conn.roomTierId) {
+            const room = roomManager.getRoom(conn.roomTierId);
+            if (room) room.previewTicket(socketId, data.ticketNumber);
+          }
+          break;
+        }
+
+        case 'SELECT_TICKET': {
+          if (conn.roomTierId) {
+            const room = roomManager.getRoom(conn.roomTierId);
+            if (room) {
+              const res = room.selectTicket(socketId, data.ticketNumber);
+              if (!res.ok) {
+                ws.send(JSON.stringify({
+                  type: 'TICKET_SELECT_ERROR',
+                  message: res.message
+                }));
+              }
+            }
           }
           break;
         }

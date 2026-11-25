@@ -101,10 +101,26 @@ const fakeSock2 = { id: 'sock_2', readyState: 1, send: () => {} };
 const player1 = room.addOrReconnectPlayer(fakeSock1, { token: p1Token, ...s1 });
 assert.strictEqual(room.status, 'WAITING', '1 player must stay in WAITING (no bots injected)');
 assert.strictEqual(room.getPublicState().playerCount, 1);
+assert.strictEqual(player1.ticketNumber, 1);
 
 const player2 = room.addOrReconnectPlayer(fakeSock2, { token: p2Token, ...s2 });
 assert.strictEqual(room.status, 'COUNTDOWN', '2 real players must start COUNTDOWN');
 assert.strictEqual(room.getPublicState().playerCount, 2);
+assert.strictEqual(player2.ticketNumber, 2);
+
+// Explicit ticket selection (#42) and conflict protection
+const select42 = room.selectTicket('sock_1', 42);
+assert.strictEqual(select42.ok, true);
+assert.strictEqual(player1.ticketNumber, 42);
+assert.strictEqual(player1.card.id, '#42');
+
+const steal42 = room.selectTicket('sock_2', 42);
+assert.strictEqual(steal42.ok, false, 'Player 2 must not be able to take Player 1 ticket #42');
+
+const takeReleased1 = room.selectTicket('sock_2', 1);
+assert.strictEqual(takeReleased1.ok, true, 'Player 2 can select previously released ticket #1');
+assert.strictEqual(player2.ticketNumber, 1);
+console.log('  ✅ Explicit ticket selection (#1-#100) & duplicate prevention verified');
 
 // Clear countdown timer & trigger round lock directly for deterministic test
 clearInterval(room.countdownTimer);

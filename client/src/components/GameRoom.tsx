@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ArrowLeft,
-  Dices,
+  Ticket,
   Trophy,
   Volume2,
   VolumeX,
@@ -14,6 +14,7 @@ import {
 import type { RoomState, BingoCard, BingoCell, WinnerInfo, Ball } from '../types';
 import { BingoCardView } from './BingoCardView';
 import { WinnerModal } from './WinnerModal';
+import { TicketPickerModal } from './TicketPickerModal';
 import { sound } from '../services/sound';
 import { notifyParentBalanceChange } from '../services/postMessageBridge';
 import { formatETB } from '../utils/currency';
@@ -37,6 +38,11 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 }) => {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [card, setCard] = useState<BingoCard | null>(null);
+  const [ticketNumber, setTicketNumber] = useState<number | null>(null);
+  const [showTicketPicker, setShowTicketPicker] = useState(false);
+  const [previewCard, setPreviewCard] = useState<BingoCard | null>(null);
+  const [previewTakenBy, setPreviewTakenBy] = useState<string | null>(null);
+  const [ticketSelectError, setTicketSelectError] = useState<string | null>(null);
   const [spectating, setSpectating] = useState(false);
   const [debited, setDebited] = useState(false);
   const [markedIndices, setMarkedIndices] = useState<Set<number>>(new Set());
@@ -91,6 +97,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
               const joinedCard: BingoCard = msg.card;
               const joinedState: RoomState = msg.state;
               setCard(joinedCard);
+              setTicketNumber(msg.ticketNumber ?? joinedCard?.ticketNumber ?? null);
               setRoomState(joinedState);
               setSpectating(Boolean(msg.spectating));
               setDebited(Boolean(msg.debited));
@@ -128,11 +135,24 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
             case 'CARD_UPDATED':
               setCard(msg.card);
+              setTicketNumber(msg.ticketNumber ?? msg.card?.ticketNumber ?? null);
+              setShowTicketPicker(false);
+              setTicketSelectError(null);
               setMarkedIndices(new Set());
               setDrawnNumbers(new Set());
               setSpectating(false);
               setDebited(false);
               sound.playTick();
+              break;
+
+            case 'TICKET_PREVIEW':
+              setPreviewCard(msg.card);
+              setPreviewTakenBy(msg.takenBy || null);
+              setTicketSelectError(null);
+              break;
+
+            case 'TICKET_SELECT_ERROR':
+              setTicketSelectError(msg.message || 'Could not select ticket.');
               break;
 
             case 'BET_DEBITED':
@@ -287,9 +307,15 @@ export const GameRoom: React.FC<GameRoomProps> = ({
     });
   };
 
-  const handleChangeCard = () => {
+  const handlePreviewTicket = (num: number) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'REGENERATE_CARD', tierId }));
+      socketRef.current.send(JSON.stringify({ type: 'PREVIEW_TICKET', tierId, ticketNumber: num }));
+    }
+  };
+
+  const handleConfirmTicket = (num: number) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'SELECT_TICKET', tierId, ticketNumber: num }));
     }
   };
 
@@ -448,11 +474,14 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           {!spectating && (status === 'WAITING' || status === 'COUNTDOWN') && (
             <div className="flex items-center justify-center gap-2 pt-1">
               <button
-                onClick={handleChangeCard}
-                className="px-4 py-2 rounded-full bg-[#16274a] hover:bg-[#1d3360] active:scale-95 border border-[#233d73] text-xs font-bold text-white flex items-center gap-1.5 shadow-sm cursor-pointer"
+                onClick={() => {
+                  setTicketSelectError(null);
+                  setShowTicketPicker(true);
+                }}
+                className="px-4 py-2 rounded-full bg-[#ffa800] hover:bg-[#ffb820] active:scale-95 text-xs font-black text-black flex items-center gap-1.5 shadow-[0_2px_10px_rgba(255,168,0,0.35)] cursor-pointer transition-all"
               >
-                <Dices className="w-3.5 h-3.5 text-[#ffa800]" />
-                <span>Change Ticket</span>
+                <Ticket className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Select Ticket {ticketNumber ? `(#${ticketNumber})` : ''}</span>
               </button>
             </div>
           )}
@@ -581,6 +610,21 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           <Sparkles className="w-5 h-5 fill-current" />
         </button>
       </div>
+
+      {showTicketPicker && (status === 'WAITING' || status === 'COUNTDOWN') && (
+        <TicketPickerModal
+          poolSize={roomState?.ticketPoolSize || 100}
+          currentTicketNumber={ticketNumber}
+          currentPlayerRef={playerRef}
+          takenTickets={roomState?.takenTickets || []}
+          previewCard={previewCard}
+          previewTakenBy={previewTakenBy}
+          errorMessage={ticketSelectError}
+          onPreviewTicket={handlePreviewTicket}
+          onConfirmTicket={handleConfirmTicket}
+          onClose={() => setShowTicketPicker(false)}
+        />
+      )}
 
       {winnerModal && (
         <WinnerModal
