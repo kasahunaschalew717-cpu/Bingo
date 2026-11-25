@@ -5,7 +5,6 @@ import {
   Volume2,
   VolumeX,
   Sparkles,
-  Check,
   Users,
   Grid,
   WifiOff
@@ -45,7 +44,6 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   const [debited, setDebited] = useState(false);
   const [markedIndices, setMarkedIndices] = useState<Set<number>>(new Set());
   const [drawnNumbers, setDrawnNumbers] = useState<Set<number>>(new Set());
-  const [autoDaub, setAutoDaub] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showBoard, setShowBoard] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
@@ -54,12 +52,8 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   const [claimFeedback, setClaimFeedback] = useState<string | null>(null);
 
   const socketRef = useRef<WebSocket | null>(null);
-  const autoDaubRef = useRef(autoDaub);
-  const cardRef = useRef(card);
   const balanceCbRef = useRef(onBalanceUpdated);
 
-  autoDaubRef.current = autoDaub;
-  cardRef.current = card;
   balanceCbRef.current = onBalanceUpdated;
 
   useEffect(() => {
@@ -107,18 +101,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
                 (joinedState.drawnBalls || []).map((b: Ball) => b.number)
               );
               setDrawnNumbers(restoredDrawn);
-
-              if (autoDaubRef.current && joinedCard && restoredDrawn.size > 0) {
-                const restoredMarks = new Set<number>();
-                joinedCard.cells.forEach((cell) => {
-                  if (!cell.isFree && restoredDrawn.has(cell.number)) {
-                    restoredMarks.add(cell.index);
-                  }
-                });
-                setMarkedIndices(restoredMarks);
-              } else {
-                setMarkedIndices(new Set());
-              }
+              setMarkedIndices(new Set());
               break;
             }
 
@@ -182,19 +165,6 @@ export const GameRoom: React.FC<GameRoomProps> = ({
                 next.add(ball.number);
                 return next;
               });
-
-              const activeCard = cardRef.current;
-              if (autoDaubRef.current && activeCard) {
-                const matchingCell = activeCard.cells.find((c) => c.number === ball.number);
-                if (matchingCell) {
-                  setMarkedIndices((prev) => {
-                    const next = new Set(prev);
-                    next.add(matchingCell.index);
-                    return next;
-                  });
-                  sound.playDaub();
-                }
-              }
               break;
             }
 
@@ -269,20 +239,6 @@ export const GameRoom: React.FC<GameRoomProps> = ({
       }
     };
   }, [tierId, token, playerRef]);
-
-  useEffect(() => {
-    if (autoDaub && card && drawnNumbers.size > 0) {
-      setMarkedIndices((prev) => {
-        const next = new Set(prev);
-        card.cells.forEach((cell) => {
-          if (!cell.isFree && drawnNumbers.has(cell.number)) {
-            next.add(cell.index);
-          }
-        });
-        return next;
-      });
-    }
-  }, [autoDaub, card, drawnNumbers]);
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -545,24 +501,11 @@ export const GameRoom: React.FC<GameRoomProps> = ({
       {/* 5. In-Game Controls */}
       {card && (
         <div className="mt-3 space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <button
-              onClick={() => setAutoDaub(!autoDaub)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${autoDaub
-                ? 'bg-[#00a3ff]/20 border border-[#00a3ff] text-[#00a3ff]'
-                : 'bg-[#0e1a32] border border-[#1b2d50] text-[#7e92b4]'
-                }`}
-            >
-              <Check className={`w-3.5 h-3.5 ${autoDaub ? 'opacity-100' : 'opacity-30'}`} />
-              <span>Auto-Daub: {autoDaub ? 'ON' : 'OFF'}</span>
-            </button>
-
-            {hasLineBingo && (
-              <span className="text-[11px] text-[#ffa800] font-bold">
-                Line Ready
-              </span>
-            )}
-          </div>
+          {hasLineBingo && (
+            <div className="text-center text-[11px] text-[#ffa800] font-bold">
+              Line Ready
+            </div>
+          )}
 
           <button
             disabled={status !== 'PLAYING' || spectating || !debited}
