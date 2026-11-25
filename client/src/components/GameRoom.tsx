@@ -18,6 +18,7 @@ import { BingoBall3D } from './BingoEmblem';
 import { sound } from '../services/sound';
 import { notifyParentBalanceChange } from '../services/postMessageBridge';
 import { formatETB } from '../utils/currency';
+import { formatCountdown } from '../utils/time';
 
 interface GameRoomProps {
   tierId: string;
@@ -455,7 +456,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
             <span className="text-lg font-black text-white tabular-nums">
               {status === 'COUNTDOWN'
-                ? `${roomState?.countdown}s`
+                ? formatCountdown(roomState?.countdown ?? 120)
                 : status === 'LOCKING'
                   ? '...'
                   : `${roomState?.playerCount || 0} / ${minPlayers}`}

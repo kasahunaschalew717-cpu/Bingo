@@ -41,7 +41,7 @@ export const config = {
   useMockWallet,
   rakePercent,
   minPlayersToStart,
-  countdownSeconds: Number.parseInt(process.env.COUNTDOWN_SECONDS || '15', 10),
+  countdownSeconds: Number.parseInt(process.env.COUNTDOWN_SECONDS || '120', 10),
   ballIntervalMs: Number.parseInt(process.env.BALL_INTERVAL_MS || '3000', 10),
   intermissionMs: Number.parseInt(process.env.INTERMISSION_MS || '8000', 10),
   dbPath: process.env.DB_PATH || path.resolve(__dirname, '../data/bingo.db'),

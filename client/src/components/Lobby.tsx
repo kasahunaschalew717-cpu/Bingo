@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, Users, Trophy, Clock, History, BookOpen } from 'lucide-react';
 import type { RoomTierSummary } from '../types';
 import { formatETB } from '../utils/currency';
+import { formatCountdown } from '../utils/time';
 import { TierEmblem } from './BingoEmblem';
 import { sound } from '../services/sound';
 
@@ -80,7 +81,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     {isCountdown && (
                       <span className="px-1.5 py-0.5 rounded bg-[#00c070]/20 border border-[#00c070]/40 text-[9px] font-bold text-[#00c070] flex items-center gap-0.5 tabular-nums shrink-0">
                         <Clock className="w-2.5 h-2.5" />
-                        {tier.countdown}s
+                        {formatCountdown(tier.countdown)}
                       </span>
                     )}
                   </div>
