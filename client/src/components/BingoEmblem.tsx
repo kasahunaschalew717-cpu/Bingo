@@ -61,10 +61,10 @@ export const TierEmblem: React.FC<TierEmblemProps> = ({ tierId, stakeETB }) => {
 
   return (
     <div
-      className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br ${palette.bgFrom} ${palette.bgTo} border ${palette.ring} flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] shrink-0`}
+      className={`relative w-12 h-12 rounded-2xl bg-gradient-to-br ${palette.bgFrom} ${palette.bgTo} border ${palette.ring} flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] shrink-0`}
     >
       {/* Bespoke Mini 3x3 Bingo Ticket SVG */}
-      <svg viewBox="0 0 36 36" className="w-8 h-8" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 36 36" className="w-7 h-7" fill="none" aria-hidden="true">
         <rect x="4" y="4" width="28" height="28" rx="6" fill="#081121" stroke={palette.accent} strokeWidth="1.75" strokeOpacity="0.85" />
         <rect x="4" y="4" width="28" height="7" rx="4" fill={palette.accent} fillOpacity="0.22" />
         <line x1="4" y1="11" x2="32" y2="11" stroke={palette.accent} strokeWidth="1.2" strokeOpacity="0.6" />

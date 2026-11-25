@@ -33,7 +33,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   tierId,
   token,
   playerRef,
-  playerName,
+  playerName: _playerName,
   onBackToLobby,
   onBalanceUpdated
 }) => {
@@ -371,18 +371,18 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         </button>
 
         <div className="flex flex-col items-center">
-          <span className="text-xs font-black text-white font-serif">{roomState?.name || 'Bingo Parlor'}</span>
-          <div className="flex items-center gap-1 text-[10px] text-[#ffa800] font-bold">
-            <span>{playerName}</span>
-            <span>•</span>
-            <span>Stake: {roomState?.stakeETB || 5} ETB</span>
-          </div>
+          <span className="text-sm font-bold text-white font-serif leading-tight">
+            {roomState?.name || 'Bingo Parlor'}
+          </span>
+          <span className="text-[10px] text-[#ffa800] font-bold tracking-wide">
+            Stake: {roomState?.stakeETB || 5} ETB
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#00c070]/15 border border-[#00c070]/40 text-[#00c070] text-xs font-extrabold shadow-sm">
-            <Trophy className="w-3 h-3" />
-            <span>{potETB} ETB</span>
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#00c070]/15 border border-[#00c070]/40 text-[#00c070] text-xs font-extrabold shadow-sm tabular-nums whitespace-nowrap">
+            <Trophy className="w-3 h-3 shrink-0" />
+            <span>Pot {potETB}</span>
           </div>
 
           <button
