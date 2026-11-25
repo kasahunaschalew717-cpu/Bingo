@@ -42,18 +42,28 @@ export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
   onConfirmTicket,
   onClose
 }) => {
-  const initialPage = currentTicketNumber ? Math.floor((currentTicketNumber - 1) / 25) : 0;
+  const takenMap = new Map<number, TakenTicket>();
+  takenTickets.forEach((t) => takenMap.set(t.ticketNumber, t));
+
+  const getInitialTicket = () => {
+    if (currentTicketNumber) return currentTicketNumber;
+    for (let n = 1; n <= poolSize; n++) {
+      const taken = takenMap.get(n);
+      if (!taken || taken.playerRef === currentPlayerRef) return n;
+    }
+    return 1;
+  };
+
+  const initialTicket = getInitialTicket();
+  const initialPage = Math.floor((initialTicket - 1) / 25);
   const [pageIdx, setPageIdx] = useState(Math.min(Math.max(initialPage, 0), RANGES.length - 1));
-  const [selectedNum, setSelectedNum] = useState<number>(currentTicketNumber || 1);
+  const [selectedNum, setSelectedNum] = useState<number>(initialTicket);
 
   useEffect(() => {
     if (selectedNum) {
       onPreviewTicket(selectedNum);
     }
   }, [selectedNum]);
-
-  const takenMap = new Map<number, TakenTicket>();
-  takenTickets.forEach((t) => takenMap.set(t.ticketNumber, t));
 
   const activeRange = RANGES[pageIdx];
   const numbers: number[] = [];

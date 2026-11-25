@@ -82,7 +82,9 @@ class BingoRoom {
   }
 
   _getSeatedPlayers() {
-    return Array.from(this.players.values()).filter((p) => !p.spectating);
+    return Array.from(this.players.values()).filter(
+      (p) => !p.spectating && typeof p.ticketNumber === 'number' && p.card !== null
+    );
   }
 
   _getTakenTickets() {
@@ -163,8 +165,6 @@ class BingoRoom {
     }
 
     const roundInFlight = this.status === 'LOCKING' || this.status === 'PLAYING' || this.status === 'FINISHED';
-    const ticketNumber = roundInFlight ? null : this._assignNextAvailableTicketNumber();
-    const card = ticketNumber ? this.ticketPool.get(ticketNumber) : generateBingoCard();
 
     const player = {
       socketId: socket.id,
@@ -172,8 +172,8 @@ class BingoRoom {
       token: session.token,
       playerRef,
       name: session.player.name,
-      ticketNumber,
-      card,
+      ticketNumber: null,
+      card: null,
       spectating: roundInFlight,
       debited: false,
       debitRef: null,
@@ -181,12 +181,6 @@ class BingoRoom {
     };
 
     this.players.set(playerRef, player);
-
-    // Start countdown once enough seated players join
-    if (this.status === 'WAITING' && this._getSeatedPlayers().length >= config.minPlayersToStart) {
-      this._startCountdown();
-    }
-
     this._notifyState();
     return player;
   }
@@ -267,6 +261,10 @@ class BingoRoom {
       }));
     }
 
+    if (this.status === 'WAITING' && this._getSeatedPlayers().length >= config.minPlayersToStart) {
+      this._startCountdown();
+    }
+
     this._notifyState();
     return { ok: true, ticketNumber: num };
   }
@@ -317,6 +315,13 @@ class BingoRoom {
     if (seated.length < config.minPlayersToStart) {
       this._cancelCountdownToWaiting();
       return;
+    }
+
+    // Any connected player who has not picked a ticket yet watches this round
+    for (const p of this.players.values()) {
+      if (typeof p.ticketNumber !== 'number' || p.card === null) {
+        p.spectating = true;
+      }
     }
 
     this.roundId = `r_${Date.now().toString(36)}_${this.tier.stakeETB}_${randomBytes(2).toString('hex')}`;
@@ -666,28 +671,20 @@ class BingoRoom {
     // Generate a fresh 100-ticket pool for the next round
     this.ticketPool = generateTicketPool(this.ticketPoolSize);
 
-    // Drop disconnected players, promote spectators & assign fresh tickets for next round
-    let nextNum = 1;
+    // Drop disconnected players, clear tickets so players choose for the new round
     for (const [playerRef, p] of this.players.entries()) {
       if (!p.socket || p.socket.readyState !== 1) {
         this.players.delete(playerRef);
         continue;
       }
-      const assigned = nextNum <= this.ticketPoolSize ? nextNum++ : null;
-      p.ticketNumber = assigned;
-      p.card = assigned ? this.ticketPool.get(assigned) : generateBingoCard();
+      p.ticketNumber = null;
+      p.card = null;
       p.spectating = false;
       p.debited = false;
       p.debitRef = null;
       p.socket.send(JSON.stringify({
-        type: 'CARD_UPDATED',
-        ticketNumber: assigned,
-        card: p.card
+        type: 'CARD_CLEARED'
       }));
-    }
-
-    if (this._getSeatedPlayers().length >= config.minPlayersToStart) {
-      this._startCountdown();
     }
 
     this._notifyState();

@@ -59,10 +59,12 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   const socketRef = useRef<WebSocket | null>(null);
   const autoDaubRef = useRef(autoDaub);
   const cardRef = useRef(card);
+  const winnerModalRef = useRef(winnerModal);
   const balanceCbRef = useRef(onBalanceUpdated);
 
   autoDaubRef.current = autoDaub;
   cardRef.current = card;
+  winnerModalRef.current = winnerModal;
   balanceCbRef.current = onBalanceUpdated;
 
   useEffect(() => {
@@ -95,15 +97,26 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
           switch (msg.type) {
             case 'ROOM_JOINED': {
-              const joinedCard: BingoCard = msg.card;
+              const joinedCard: BingoCard | null = msg.card || null;
               const joinedState: RoomState = msg.state;
+              const isSpectating = Boolean(msg.spectating);
               setCard(joinedCard);
               setTicketNumber(msg.ticketNumber ?? joinedCard?.ticketNumber ?? null);
               setRoomState(joinedState);
-              setSpectating(Boolean(msg.spectating));
+              setSpectating(isSpectating);
               setDebited(Boolean(msg.debited));
               if (typeof msg.balance === 'number') {
                 balanceCbRef.current(msg.balance);
+              }
+
+              // Prompt player to choose a ticket immediately upon entering parlor
+              if (
+                !isSpectating &&
+                !joinedCard &&
+                (joinedState.status === 'WAITING' || joinedState.status === 'COUNTDOWN')
+              ) {
+                setTicketSelectError(null);
+                setShowTicketPicker(true);
               }
 
               // Restore drawn numbers on reconnect or spectator join
@@ -144,6 +157,19 @@ export const GameRoom: React.FC<GameRoomProps> = ({
               setSpectating(false);
               setDebited(false);
               sound.playTick();
+              break;
+
+            case 'CARD_CLEARED':
+              setCard(null);
+              setTicketNumber(null);
+              setMarkedIndices(new Set());
+              setDrawnNumbers(new Set());
+              setSpectating(false);
+              setDebited(false);
+              if (!winnerModalRef.current) {
+                setTicketSelectError(null);
+                setShowTicketPicker(true);
+              }
               break;
 
             case 'TICKET_PREVIEW':
@@ -537,8 +563,8 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         </div>
       )}
 
-      {/* 4. Bingo Card View */}
-      {card && (
+      {/* 4. Bingo Card View or Choose Ticket Prompt */}
+      {card ? (
         <BingoCardView
           card={card}
           drawnNumbers={drawnNumbers}
@@ -547,10 +573,31 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           onToggleCell={handleToggleCell}
           interactive={status === 'PLAYING' && !spectating}
         />
-      )}
+      ) : !spectating && (status === 'WAITING' || status === 'COUNTDOWN') ? (
+        <div className="w-full max-w-sm mx-auto rounded-3xl bg-gradient-to-b from-[#101e38] to-[#081020] border border-dashed border-[#2a4575] p-8 text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-[#ffa800]/15 border border-[#ffa800]/40 flex items-center justify-center">
+            <Ticket className="w-7 h-7 text-[#ffa800]" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white font-serif">Choose Your Ticket</h3>
+            <p className="text-xs text-[#8ea4c9]">Pick an available board (#1–#100) to enter this round.</p>
+          </div>
+          <button
+            onClick={() => {
+              setTicketSelectError(null);
+              setShowTicketPicker(true);
+            }}
+            className="px-6 py-2.5 rounded-full bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-xs font-black text-[#070e1b] inline-flex items-center gap-1.5 shadow-[0_4px_12px_rgba(255,168,0,0.3)] cursor-pointer transition-all"
+          >
+            <Ticket className="w-4 h-4 stroke-[2.5]" />
+            <span>Select Ticket</span>
+          </button>
+        </div>
+      ) : null}
 
       {/* 5. In-Game Controls */}
-      <div className="mt-3 space-y-2">
+      {card && (
+        <div className="mt-3 space-y-2">
         <div className="flex items-center justify-between px-1">
           <button
             onClick={() => setAutoDaub(!autoDaub)}
@@ -585,6 +632,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           <Sparkles className="w-5 h-5 fill-current" />
         </button>
       </div>
+      )}
 
       {showTicketPicker && (status === 'WAITING' || status === 'COUNTDOWN') && (
         <TicketPickerModal
@@ -605,7 +653,13 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         <WinnerModal
           winner={winnerModal}
           isCurrentUser={winnerModal.playerRef === playerRef}
-          onClose={() => setWinnerModal(null)}
+          onClose={() => {
+            setWinnerModal(null);
+            if (!cardRef.current && (status === 'WAITING' || status === 'COUNTDOWN')) {
+              setTicketSelectError(null);
+              setShowTicketPicker(true);
+            }
+          }}
         />
       )}
     </div>
