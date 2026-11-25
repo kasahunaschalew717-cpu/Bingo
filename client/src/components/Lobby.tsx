@@ -3,6 +3,7 @@ import { ArrowRight, Users, Trophy, Clock, History, BookOpen } from 'lucide-reac
 import type { RoomTierSummary } from '../types';
 import { formatETB } from '../utils/currency';
 import { TierEmblem } from './BingoEmblem';
+import { sound } from '../services/sound';
 
 interface LobbyProps {
   tiers: RoomTierSummary[];
@@ -56,7 +57,10 @@ export const Lobby: React.FC<LobbyProps> = ({
           return (
             <div
               key={tier.id}
-              onClick={() => onSelectTier(tier.id)}
+              onClick={() => {
+                sound.unlockAudio();
+                onSelectTier(tier.id);
+              }}
               className="group rounded-2xl bg-gradient-to-br from-[#101e38] to-[#0b1528] hover:from-[#132442] hover:to-[#0d1930] border border-[#1c3057] hover:border-[#2c4b85] px-3.5 py-3 transition-all duration-150 shadow-[0_6px_18px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)] flex items-center justify-between gap-3 cursor-pointer"
             >
               {/* Left: Tier Emblem + 2-Line Info */}
@@ -100,6 +104,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  sound.unlockAudio();
                   onSelectTier(tier.id);
                 }}
                 className={`px-3.5 py-2 rounded-full font-black text-xs tracking-wide transition-all duration-150 inline-flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${

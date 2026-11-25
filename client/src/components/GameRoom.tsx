@@ -161,6 +161,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
               setSpectating(false);
               balanceCbRef.current(msg.balance);
               notifyParentBalanceChange();
+              sound.playRoundStart();
               setBannerNotice(`Ticket confirmed — ${msg.stakeETB} ETB bet locked.`);
               setTimeout(() => setBannerNotice(null), 3500);
               break;
@@ -175,7 +176,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
             case 'BALL_DRAWN': {
               const ball: Ball = msg.ball;
-              sound.playBallDrop();
+              sound.playBallCall(ball);
 
               setDrawnNumbers((prev) => {
                 const next = new Set(prev);
@@ -201,7 +202,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             case 'ROUND_FINISHED': {
               if (msg.winner) {
                 setWinnerModal(msg.winner);
-                sound.playBingoCall();
+                sound.playBingoAnnouncement();
                 if (msg.winner.newBalance !== undefined && msg.winner.playerRef === playerRef) {
                   balanceCbRef.current(msg.winner.newBalance);
                   notifyParentBalanceChange();
@@ -287,7 +288,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   const toggleSound = () => {
     const next = !soundEnabled;
     setSoundEnabled(next);
-    sound.enabled = next;
+    sound.setEnabled(next);
   };
 
   const handleToggleCell = (cell: BingoCell) => {
