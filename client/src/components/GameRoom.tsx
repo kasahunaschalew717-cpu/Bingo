@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ArrowLeft,
-  Ticket,
   Trophy,
   Volume2,
   VolumeX,
@@ -14,7 +13,7 @@ import {
 import type { RoomState, BingoCard, BingoCell, WinnerInfo, Ball } from '../types';
 import { BingoCardView } from './BingoCardView';
 import { WinnerModal } from './WinnerModal';
-import { TicketPickerModal } from './TicketPickerModal';
+import { TicketSelector } from './TicketSelector';
 import { BingoBall3D } from './BingoEmblem';
 import { sound } from '../services/sound';
 import { notifyParentBalanceChange } from '../services/postMessageBridge';
@@ -40,9 +39,6 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [card, setCard] = useState<BingoCard | null>(null);
   const [ticketNumber, setTicketNumber] = useState<number | null>(null);
-  const [showTicketPicker, setShowTicketPicker] = useState(false);
-  const [previewCard, setPreviewCard] = useState<BingoCard | null>(null);
-  const [previewTakenBy, setPreviewTakenBy] = useState<string | null>(null);
   const [ticketSelectError, setTicketSelectError] = useState<string | null>(null);
   const [spectating, setSpectating] = useState(false);
   const [debited, setDebited] = useState(false);
@@ -59,12 +55,10 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   const socketRef = useRef<WebSocket | null>(null);
   const autoDaubRef = useRef(autoDaub);
   const cardRef = useRef(card);
-  const winnerModalRef = useRef(winnerModal);
   const balanceCbRef = useRef(onBalanceUpdated);
 
   autoDaubRef.current = autoDaub;
   cardRef.current = card;
-  winnerModalRef.current = winnerModal;
   balanceCbRef.current = onBalanceUpdated;
 
   useEffect(() => {
@@ -99,27 +93,15 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             case 'ROOM_JOINED': {
               const joinedCard: BingoCard | null = msg.card || null;
               const joinedState: RoomState = msg.state;
-              const isSpectating = Boolean(msg.spectating);
               setCard(joinedCard);
               setTicketNumber(msg.ticketNumber ?? joinedCard?.ticketNumber ?? null);
               setRoomState(joinedState);
-              setSpectating(isSpectating);
+              setSpectating(Boolean(msg.spectating));
               setDebited(Boolean(msg.debited));
               if (typeof msg.balance === 'number') {
                 balanceCbRef.current(msg.balance);
               }
 
-              // Prompt player to choose a ticket immediately upon entering parlor
-              if (
-                !isSpectating &&
-                !joinedCard &&
-                (joinedState.status === 'WAITING' || joinedState.status === 'COUNTDOWN')
-              ) {
-                setTicketSelectError(null);
-                setShowTicketPicker(true);
-              }
-
-              // Restore drawn numbers on reconnect or spectator join
               const restoredDrawn = new Set<number>(
                 (joinedState.drawnBalls || []).map((b: Ball) => b.number)
               );
@@ -150,7 +132,6 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             case 'CARD_UPDATED':
               setCard(msg.card);
               setTicketNumber(msg.ticketNumber ?? msg.card?.ticketNumber ?? null);
-              setShowTicketPicker(false);
               setTicketSelectError(null);
               setMarkedIndices(new Set());
               setDrawnNumbers(new Set());
@@ -162,20 +143,11 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             case 'CARD_CLEARED':
               setCard(null);
               setTicketNumber(null);
+              setTicketSelectError(null);
               setMarkedIndices(new Set());
               setDrawnNumbers(new Set());
               setSpectating(false);
               setDebited(false);
-              if (!winnerModalRef.current) {
-                setTicketSelectError(null);
-                setShowTicketPicker(true);
-              }
-              break;
-
-            case 'TICKET_PREVIEW':
-              setPreviewCard(msg.card);
-              setPreviewTakenBy(msg.takenBy || null);
-              setTicketSelectError(null);
               break;
 
             case 'TICKET_SELECT_ERROR':
@@ -335,13 +307,9 @@ export const GameRoom: React.FC<GameRoomProps> = ({
     });
   };
 
-  const handlePreviewTicket = (num: number) => {
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'PREVIEW_TICKET', tierId, ticketNumber: num }));
-    }
-  };
-
-  const handleConfirmTicket = (num: number) => {
+  const handleSelectTicket = (num: number) => {
+    sound.unlockAudio();
+    setTicketSelectError(null);
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'SELECT_TICKET', tierId, ticketNumber: num }));
     }
@@ -438,17 +406,17 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
       {/* Notice & Claim Feedback Banners */}
       {bannerNotice && (
-        <div className="mb-2 p-2.5 rounded-xl bg-[#0e2246] border border-[#00a3ff]/60 text-white text-xs font-bold text-center animate-fadeIn shadow-md">
+        <div className="mb-2 p-2.5 rounded-xl bg-[#0e2246] border border-[#00a3ff]/60 text-white text-xs font-bold text-center shadow-md">
           {bannerNotice}
         </div>
       )}
       {claimFeedback && (
-        <div className="mb-2 p-2 rounded-xl bg-[#ffa800]/20 border border-[#ffa800] text-[#ffa800] text-xs font-bold text-center animate-fadeIn">
+        <div className="mb-2 p-2 rounded-xl bg-[#ffa800]/20 border border-[#ffa800] text-[#ffa800] text-xs font-bold text-center">
           {claimFeedback}
         </div>
       )}
 
-      {/* 2. Seated Players Strip (shortened Ardi names) */}
+      {/* 2. Seated Players Strip */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 mb-2">
         <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#0e1a32] border border-[#1b2d50] text-[10px] font-bold text-[#7e92b4] shrink-0">
           <Users className="w-3 h-3 text-[#00a3ff]" />
@@ -468,46 +436,44 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         ))}
       </div>
 
-      {/* 3. Game State Display */}
+      {/* 3. Status Bar (Countdown / Waiting) OR Ball Caller (Playing) */}
       {status === 'WAITING' || status === 'COUNTDOWN' || status === 'LOCKING' ? (
-        <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] p-3.5 text-center space-y-2.5 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
-          <div className="flex items-center justify-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${status === 'COUNTDOWN' ? 'bg-[#00c070] animate-ping' : 'bg-[#ffa800] animate-pulse'
-                }`}
-            ></span>
-            <span className="text-[11px] font-bold text-[#8ea4c9] uppercase tracking-wider">
-              {status === 'LOCKING'
-                ? 'Starting'
-                : status === 'COUNTDOWN'
-                  ? 'Starting in'
-                  : 'Waiting for Players'}
+        <>
+          <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] px-4 py-2.5 mb-3 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full ${status === 'COUNTDOWN' ? 'bg-[#00c070] animate-ping' : 'bg-[#ffa800] animate-pulse'}`}
+              ></span>
+              <span className="text-xs font-bold text-[#8ea4c9] uppercase tracking-wider">
+                {status === 'LOCKING'
+                  ? 'Starting'
+                  : status === 'COUNTDOWN'
+                    ? 'Starting in'
+                    : 'Ready Players'}
+              </span>
+            </div>
+
+            <span className="text-lg font-black text-white tabular-nums">
+              {status === 'COUNTDOWN'
+                ? `${roomState?.countdown}s`
+                : status === 'LOCKING'
+                  ? '...'
+                  : `${roomState?.playerCount || 0} / ${minPlayers}`}
             </span>
           </div>
 
-          <div className="text-3xl font-black text-white tabular-nums tracking-tight">
-            {status === 'COUNTDOWN'
-              ? `${roomState?.countdown}s`
-              : status === 'LOCKING'
-                ? '...'
-                : `${roomState?.playerCount || 0} / ${minPlayers}`}
-          </div>
-
+          {/* Inline Ticket Selector (#1-#100) right inside the room */}
           {!spectating && (status === 'WAITING' || status === 'COUNTDOWN') && (
-            <div className="flex items-center justify-center pt-0.5">
-              <button
-                onClick={() => {
-                  setTicketSelectError(null);
-                  setShowTicketPicker(true);
-                }}
-                className="px-4 py-2 rounded-full bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-xs font-black text-[#070e1b] flex items-center gap-1.5 shadow-[0_4px_12px_rgba(255,168,0,0.3)] cursor-pointer transition-all"
-              >
-                <Ticket className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Select Ticket {ticketNumber ? `#${ticketNumber}` : ''}</span>
-              </button>
-            </div>
+            <TicketSelector
+              poolSize={roomState?.ticketPoolSize || 100}
+              currentTicketNumber={ticketNumber}
+              currentPlayerRef={playerRef}
+              takenTickets={roomState?.takenTickets || []}
+              errorMessage={ticketSelectError}
+              onSelectTicket={handleSelectTicket}
+            />
           )}
-        </div>
+        </>
       ) : (
         /* PLAYING / Ball Caller View */
         <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] p-3 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
@@ -563,8 +529,8 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         </div>
       )}
 
-      {/* 4. Bingo Card View or Choose Ticket Prompt */}
-      {card ? (
+      {/* 4. Bingo Card View */}
+      {card && (
         <BingoCardView
           card={card}
           drawnNumbers={drawnNumbers}
@@ -573,93 +539,52 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           onToggleCell={handleToggleCell}
           interactive={status === 'PLAYING' && !spectating}
         />
-      ) : !spectating && (status === 'WAITING' || status === 'COUNTDOWN') ? (
-        <div className="w-full max-w-sm mx-auto rounded-3xl bg-gradient-to-b from-[#101e38] to-[#081020] border border-dashed border-[#2a4575] p-8 text-center space-y-4">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-[#ffa800]/15 border border-[#ffa800]/40 flex items-center justify-center">
-            <Ticket className="w-7 h-7 text-[#ffa800]" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-base font-bold text-white font-serif">Choose Your Ticket</h3>
-            <p className="text-xs text-[#8ea4c9]">Pick an available board (#1–#100) to enter this round.</p>
-          </div>
-          <button
-            onClick={() => {
-              setTicketSelectError(null);
-              setShowTicketPicker(true);
-            }}
-            className="px-6 py-2.5 rounded-full bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-xs font-black text-[#070e1b] inline-flex items-center gap-1.5 shadow-[0_4px_12px_rgba(255,168,0,0.3)] cursor-pointer transition-all"
-          >
-            <Ticket className="w-4 h-4 stroke-[2.5]" />
-            <span>Select Ticket</span>
-          </button>
-        </div>
-      ) : null}
+      )}
 
       {/* 5. In-Game Controls */}
       {card && (
         <div className="mt-3 space-y-2">
-        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center justify-between px-1">
+            <button
+              onClick={() => setAutoDaub(!autoDaub)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${autoDaub
+                ? 'bg-[#00a3ff]/20 border border-[#00a3ff] text-[#00a3ff]'
+                : 'bg-[#0e1a32] border border-[#1b2d50] text-[#7e92b4]'
+                }`}
+            >
+              <Check className={`w-3.5 h-3.5 ${autoDaub ? 'opacity-100' : 'opacity-30'}`} />
+              <span>Auto-Daub: {autoDaub ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {hasLineBingo && (
+              <span className="text-[11px] text-[#ffa800] font-bold">
+                Line Ready
+              </span>
+            )}
+          </div>
+
           <button
-            onClick={() => setAutoDaub(!autoDaub)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${autoDaub
-              ? 'bg-[#00a3ff]/20 border border-[#00a3ff] text-[#00a3ff]'
-              : 'bg-[#0e1a32] border border-[#1b2d50] text-[#7e92b4]'
+            disabled={status !== 'PLAYING' || spectating || !debited}
+            onClick={handleClaimBingo}
+            className={`w-full py-4 rounded-2xl font-black text-xl tracking-widest uppercase transition-all duration-150 flex items-center justify-center gap-2 shadow-2xl ${hasLineBingo
+              ? 'bg-gradient-to-r from-[#ffa800] via-[#ffc030] to-[#ffa800] text-black shadow-[0_0_30px_rgba(255,168,0,0.9)] animate-pulse scale-[1.02] border-2 border-white cursor-pointer'
+              : status === 'PLAYING' && !spectating && debited
+                ? 'bg-[#ffa800] hover:bg-[#ffb820] text-black active:scale-95 shadow-[0_4px_16px_rgba(255,168,0,0.4)] cursor-pointer'
+                : 'bg-[#15233e] text-[#4d6387] cursor-not-allowed border border-[#1b2d50]'
               }`}
           >
-            <Check className={`w-3.5 h-3.5 ${autoDaub ? 'opacity-100' : 'opacity-30'}`} />
-            <span>Auto-Daub: {autoDaub ? 'ON' : 'OFF'}</span>
+            <Sparkles className="w-5 h-5 fill-current" />
+            <span>{spectating ? 'NEXT ROUND' : 'BINGO!'}</span>
+            <Sparkles className="w-5 h-5 fill-current" />
           </button>
-
-          {hasLineBingo && (
-            <span className="text-[11px] text-[#ffa800] font-bold">
-              Line Ready
-            </span>
-          )}
         </div>
-
-        <button
-          disabled={status !== 'PLAYING' || spectating || !debited}
-          onClick={handleClaimBingo}
-          className={`w-full py-4 rounded-2xl font-black text-xl tracking-widest uppercase transition-all duration-150 flex items-center justify-center gap-2 shadow-2xl ${hasLineBingo
-            ? 'bg-gradient-to-r from-[#ffa800] via-[#ffc030] to-[#ffa800] text-black shadow-[0_0_30px_rgba(255,168,0,0.9)] animate-pulse scale-[1.02] border-2 border-white cursor-pointer'
-            : status === 'PLAYING' && !spectating && debited
-              ? 'bg-[#ffa800] hover:bg-[#ffb820] text-black active:scale-95 shadow-[0_4px_16px_rgba(255,168,0,0.4)] cursor-pointer'
-              : 'bg-[#15233e] text-[#4d6387] cursor-not-allowed border border-[#1b2d50]'
-            }`}
-        >
-          <Sparkles className="w-5 h-5 fill-current" />
-          <span>{spectating ? 'NEXT ROUND' : 'BINGO!'}</span>
-          <Sparkles className="w-5 h-5 fill-current" />
-        </button>
-      </div>
-      )}
-
-      {showTicketPicker && (status === 'WAITING' || status === 'COUNTDOWN') && (
-        <TicketPickerModal
-          poolSize={roomState?.ticketPoolSize || 100}
-          currentTicketNumber={ticketNumber}
-          currentPlayerRef={playerRef}
-          takenTickets={roomState?.takenTickets || []}
-          previewCard={previewCard}
-          previewTakenBy={previewTakenBy}
-          errorMessage={ticketSelectError}
-          onPreviewTicket={handlePreviewTicket}
-          onConfirmTicket={handleConfirmTicket}
-          onClose={() => setShowTicketPicker(false)}
-        />
       )}
 
       {winnerModal && (
         <WinnerModal
           winner={winnerModal}
           isCurrentUser={winnerModal.playerRef === playerRef}
-          onClose={() => {
-            setWinnerModal(null);
-            if (!cardRef.current && (status === 'WAITING' || status === 'COUNTDOWN')) {
-              setTicketSelectError(null);
-              setShowTicketPicker(true);
-            }
-          }}
+          onClose={() => setWinnerModal(null)}
         />
       )}
     </div>
