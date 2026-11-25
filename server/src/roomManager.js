@@ -189,8 +189,8 @@ class BingoRoom {
     for (const [playerRef, p] of this.players.entries()) {
       if (p.socketId !== socketId) continue;
 
-      // If debited in an active round, keep player state so they can reconnect or still claim/receive updates
-      if ((this.status === 'PLAYING' || this.status === 'LOCKING') && p.debited) {
+      // Keep player state if debited or if their debit is in-flight during LOCKING
+      if ((this.status === 'PLAYING' && p.debited) || (this.status === 'LOCKING' && !p.spectating)) {
         p.socket = null;
         p.socketId = null;
       } else {
@@ -234,7 +234,7 @@ class BingoRoom {
     const player = this._findBySocket(socketId);
     if (!player) return { ok: false, message: 'Player not found in room.' };
 
-    if (player.spectating || (this.status !== 'WAITING' && this.status !== 'COUNTDOWN')) {
+    if (player.spectating || player.debited || (this.status !== 'WAITING' && this.status !== 'COUNTDOWN')) {
       return { ok: false, message: 'Ticket selection is locked once the round starts.' };
     }
 

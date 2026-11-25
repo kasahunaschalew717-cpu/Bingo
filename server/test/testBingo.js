@@ -130,6 +130,10 @@ room.countdownTimer = null;
 await room._startRound();
 
 assert.strictEqual(room.status, 'PLAYING');
+// Security check: players cannot shift tickets after round locks/starts
+const lateShiftAttempt = room.selectTicket('sock_1', 99);
+assert.strictEqual(lateShiftAttempt.ok, false, 'Must reject ticket change once round is PLAYING');
+assert.strictEqual(player1.ticketNumber, 42, 'Player 1 ticket must stay locked on #42');
 // 2 players * 500 santim = 1000 santim total bet; 10% rake = 100; net pot = 900 santim
 assert.strictEqual(room.totalPot, 900, 'Net pot must equal collected bets minus 10% rake (900 santim)');
 assert.strictEqual(await walletClient.getBalance(p1Token), 49500);
