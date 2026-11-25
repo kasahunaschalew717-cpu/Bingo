@@ -1,25 +1,54 @@
-// Room Manager for Ardi Ethiopian Parlor Quick-Match Bingo
-// Win condition: Any Line ONLY (Horizontal, Vertical, or Diagonal)
+// Production Room Manager for Ardi Ethiopian Parlor Quick-Match Bingo
+// Real-money multiplayer only (zero bots), persistent SQLite audit ledger,
+// automatic crash/abort refunds, and Win Condition: Any Line ONLY.
+import { randomBytes } from 'crypto';
 import { generateBingoCard, checkBingoWin, createBallDeck } from './bingoEngine.js';
 import { walletClient } from './walletClient.js';
+import { gameDb } from './db.js';
+import { config } from './config.js';
 
 export const QUICK_MATCH_TIERS = [
-  { id: 'tier_5', name: 'Bronze Parlor', stakeETB: 5, stakeSantim: 500, minPlayers: 2 },
-  { id: 'tier_10', name: 'Silver Parlor', stakeETB: 10, stakeSantim: 1000, minPlayers: 2 },
-  { id: 'tier_25', name: 'Gold Parlor', stakeETB: 25, stakeSantim: 2500, minPlayers: 2 },
-  { id: 'tier_50', name: 'Platinum Parlor', stakeETB: 50, stakeSantim: 5000, minPlayers: 2 },
-  { id: 'tier_100', name: 'Diamond Parlor', stakeETB: 100, stakeSantim: 10000, minPlayers: 2 }
+  { id: 'tier_5', name: 'Bronze Parlor', stakeETB: 5, stakeSantim: 500 },
+  { id: 'tier_10', name: 'Silver Parlor', stakeETB: 10, stakeSantim: 1000 },
+  { id: 'tier_25', name: 'Gold Parlor', stakeETB: 25, stakeSantim: 2500 },
+  { id: 'tier_50', name: 'Platinum Parlor', stakeETB: 50, stakeSantim: 5000 },
+  { id: 'tier_100', name: 'Diamond Parlor', stakeETB: 100, stakeSantim: 10000 }
 ];
 
-const BOT_NAMES = [
-  'Abe***** T.',
-  'Hanna***** K.',
-  'Dawit***** M.',
-  'Tigist***** B.',
-  'Yonas***** G.',
-  'Selam***** W.',
-  'Befek***** Z.'
-];
+function sanitizeRefPart(str) {
+  return String(str || '').replace(/[^A-Za-z0-9_.:-]/g, '_');
+}
+
+function buildRef(prefix, roundId, playerRef) {
+  const cleanPrefix = sanitizeRefPart(prefix);
+  const cleanRound = sanitizeRefPart(roundId);
+  const cleanPlayer = sanitizeRefPart(playerRef);
+  const raw = `${cleanPrefix}_${cleanRound}_${cleanPlayer}`;
+  return raw.slice(0, 64);
+}
+
+function formatArdiErrorMessage(err) {
+  switch (err.code) {
+    case 'INSUFFICIENT_FUNDS':
+      return 'Insufficient ETB balance for this parlor stake.';
+    case 'SESSION_EXPIRED':
+      return 'Your 12-hour game session expired. Please reopen from Ardi app.';
+    case 'SESSION_UNKNOWN':
+      return 'Invalid game session. Please reopen from Ardi app.';
+    case 'GAME_OFF':
+      return 'This game is currently switched off by the Ardi desk.';
+    case 'PARLOR_PAUSED':
+      return 'The parlor is temporarily paused.';
+    case 'PLAYER_CLOSED':
+      return 'Your player account is closed.';
+    case 'BET_LIMIT':
+      return 'This stake is outside the allowed bet limits configured by the desk.';
+    case 'PAYOUT_LIMIT':
+      return 'Daily payout limit reached. The Ardi desk has been alerted.';
+    default:
+      return err.message || 'Wallet transaction refused.';
+  }
+}
 
 class BingoRoom {
   constructor(tier, broadcastFn) {
@@ -27,11 +56,14 @@ class BingoRoom {
     this.broadcast = broadcastFn;
     this.status = 'WAITING'; // WAITING | COUNTDOWN | LOCKING | PLAYING | FINISHED
     this.roundId = null;
-    this.countdown = 15;
+    this.countdown = config.countdownSeconds;
     this.countdownTimer = null;
     this.drawTimer = null;
+    this.intermissionTimer = null;
+    this.claimingLock = false;
 
-    // Players: Map<socketId, { socket, token, playerRef, name, card, isBot, debited, debitRef, balance }>
+    // Players keyed by playerRef (supports seamless mobile reconnects!)
+    // value: { socketId, socket, token, playerRef, name, card, spectating, debited, debitRef, balance }
     this.players = new Map();
 
     // Drawn numbers
@@ -39,64 +71,86 @@ class BingoRoom {
     this.drawnBalls = [];
     this.drawnSet = new Set();
 
-    // Winner of the round (Any Line = 100% of Net Pot)
+    // Round outcome
     this.winner = null;
-    this.totalPot = 0;
+    this.totalPot = 0; // net pot in santim
+    this.rakePercent = config.rakePercent;
+  }
 
-    // Commission rake
-    this.rakePercent = 0.10; // 10%
+  _getSeatedPlayers() {
+    return Array.from(this.players.values()).filter((p) => !p.spectating);
   }
 
   getPublicState() {
+    const seated = this._getSeatedPlayers();
+    const activeCount = this.status === 'PLAYING' || this.status === 'FINISHED'
+      ? Array.from(this.players.values()).filter((p) => p.debited).length
+      : seated.length;
+
+    const estimatedPot = this.totalPot > 0
+      ? this.totalPot
+      : Math.floor(seated.length * this.tier.stakeSantim * (1 - this.rakePercent));
+
     return {
       tierId: this.tier.id,
       name: this.tier.name,
       stakeETB: this.tier.stakeETB,
       stakeSantim: this.tier.stakeSantim,
       winCondition: 'Any Line',
+      minPlayers: config.minPlayersToStart,
       status: this.status,
       roundId: this.roundId,
       countdown: this.countdown,
-      playerCount: this.players.size,
-      players: Array.from(this.players.values()).map(p => ({
+      playerCount: activeCount,
+      totalConnected: this.players.size,
+      players: Array.from(this.players.values()).map((p) => ({
         playerRef: p.playerRef,
         name: p.name,
-        isBot: p.isBot
+        spectating: p.spectating,
+        debited: p.debited
       })),
       currentBall: this.drawnBalls.length > 0 ? this.drawnBalls[this.drawnBalls.length - 1] : null,
       recentBalls: this.drawnBalls.slice(-6).reverse(),
+      drawnBalls: this.drawnBalls,
       drawnCount: this.drawnBalls.length,
-      totalPot: this.totalPot,
+      totalPot: estimatedPot,
       winner: this.winner
     };
   }
 
-  addPlayer(socket, session) {
-    for (const [sId, p] of this.players.entries()) {
-      if (p.token === session.token) {
-        p.socket = socket;
-        return p;
-      }
+  addOrReconnectPlayer(socket, session) {
+    const playerRef = session.player.ref;
+    const existing = this.players.get(playerRef);
+
+    // Reconnecting player (e.g. mobile Telegram WebView woke back up)
+    if (existing) {
+      existing.socketId = socket.id;
+      existing.socket = socket;
+      existing.token = session.token;
+      existing.name = session.player.name;
+      existing.balance = session.balance;
+      this._notifyState();
+      return existing;
     }
 
-    const card = generateBingoCard();
+    const roundInFlight = this.status === 'LOCKING' || this.status === 'PLAYING' || this.status === 'FINISHED';
     const player = {
       socketId: socket.id,
       socket,
       token: session.token,
-      playerRef: session.player.ref,
+      playerRef,
       name: session.player.name,
-      card,
-      isBot: false,
+      card: generateBingoCard(),
+      spectating: roundInFlight,
       debited: false,
       debitRef: null,
       balance: session.balance
     };
 
-    this.players.set(socket.id, player);
-    this._ensureBots();
+    this.players.set(playerRef, player);
 
-    if (this.status === 'WAITING' && !this.countdownTimer) {
+    // Start countdown once enough seated players join
+    if (this.status === 'WAITING' && this._getSeatedPlayers().length >= config.minPlayersToStart) {
       this._startCountdown();
     }
 
@@ -104,49 +158,32 @@ class BingoRoom {
     return player;
   }
 
-  _ensureBots() {
-    const currentBots = Array.from(this.players.values()).filter(p => p.isBot);
-    const needed = Math.max(0, 2 - currentBots.length);
-    for (let i = 0; i < needed; i++) {
-      const botId = `bot_${Date.now()}_${Math.random()}`;
-      const botName = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-      const botCard = generateBingoCard();
-      this.players.set(botId, {
-        socketId: botId,
-        socket: null,
-        token: `bot_token_${botId}`,
-        playerRef: `pref_${botId.slice(0, 8)}`,
-        name: botName,
-        card: botCard,
-        isBot: true,
-        debited: true,
-        debitRef: `debit_bot_${botId}`,
-        balance: 100000
-      });
-    }
-  }
+  removePlayerBySocket(socketId) {
+    for (const [playerRef, p] of this.players.entries()) {
+      if (p.socketId !== socketId) continue;
 
-  removePlayer(socketId) {
-    const player = this.players.get(socketId);
-    if (!player) return;
-
-    if (this.status === 'PLAYING') {
-      player.socket = null; // detached
-    } else {
-      this.players.delete(socketId);
-      const realPlayers = Array.from(this.players.values()).filter(p => !p.isBot);
-      if (realPlayers.length === 0) {
-        this._resetRoom();
+      // If debited in an active round, keep player state so they can reconnect or still claim/receive updates
+      if ((this.status === 'PLAYING' || this.status === 'LOCKING') && p.debited) {
+        p.socket = null;
+        p.socketId = null;
+      } else {
+        this.players.delete(playerRef);
+        // Stop countdown if seated count drops below minimum before lock
+        if (this.status === 'COUNTDOWN' && this._getSeatedPlayers().length < config.minPlayersToStart) {
+          this._cancelCountdownToWaiting();
+        }
       }
+
+      this._notifyState();
+      return;
     }
-    this._notifyState();
   }
 
   regenerateCard(socketId) {
-    const player = this.players.get(socketId);
-    if (player && (this.status === 'WAITING' || this.status === 'COUNTDOWN')) {
+    const player = this._findBySocket(socketId);
+    if (player && !player.spectating && (this.status === 'WAITING' || this.status === 'COUNTDOWN')) {
       player.card = generateBingoCard();
-      if (player.socket && player.socket.send) {
+      if (player.socket && player.socket.readyState === 1) {
         player.socket.send(JSON.stringify({
           type: 'CARD_UPDATED',
           card: player.card
@@ -155,9 +192,26 @@ class BingoRoom {
     }
   }
 
+  _findBySocket(socketId) {
+    for (const p of this.players.values()) {
+      if (p.socketId === socketId) return p;
+    }
+    return null;
+  }
+
+  _cancelCountdownToWaiting() {
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    this.status = 'WAITING';
+    this.countdown = config.countdownSeconds;
+    this._notifyState();
+  }
+
   _startCountdown() {
     this.status = 'COUNTDOWN';
-    this.countdown = 12;
+    this.countdown = config.countdownSeconds;
     if (this.countdownTimer) clearInterval(this.countdownTimer);
 
     this.countdownTimer = setInterval(async () => {
@@ -173,73 +227,116 @@ class BingoRoom {
   }
 
   async _startRound() {
-    this.roundId = `rnd_${Date.now()}_${this.tier.id}`;
-    this.status = 'LOCKING';
-    this._notifyState();
-
-    // 1. Debit all real players
-    const debitedRealPlayers = [];
-    const failedPlayers = [];
-
-    for (const [sId, p] of this.players.entries()) {
-      if (p.isBot) continue;
-
-      const debitRef = `deb_${this.roundId}_${p.playerRef}`.slice(0, 64);
-      try {
-        const debitRes = await walletClient.debitBet({
-          token: p.token,
-          amount: this.tier.stakeSantim,
-          ref: debitRef,
-          roundId: this.roundId
-        });
-        p.debited = true;
-        p.debitRef = debitRef;
-        p.balance = debitRes.balance;
-        debitedRealPlayers.push(p);
-
-        if (p.socket && p.socket.send) {
-          p.socket.send(JSON.stringify({
-            type: 'BET_DEBITED',
-            balance: debitRes.balance,
-            stakeSantim: this.tier.stakeSantim,
-            stakeETB: this.tier.stakeETB
-          }));
-        }
-      } catch (err) {
-        console.error(`Debit failed for player ${p.name}:`, err.message);
-        failedPlayers.push(sId);
-        if (p.socket && p.socket.send) {
-          p.socket.send(JSON.stringify({
-            type: 'BET_FAILED',
-            message: err.code === 'INSUFFICIENT_FUNDS'
-              ? 'Insufficient wallet balance for this parlor stake.'
-              : 'Could not place bet with wallet. Please try again.'
-          }));
-        }
-      }
-    }
-
-    for (const sId of failedPlayers) {
-      this.players.delete(sId);
-    }
-
-    const activeReal = Array.from(this.players.values()).filter(p => !p.isBot && p.debited);
-    if (activeReal.length === 0) {
-      console.log(`[${this.tier.name}] No active debited players. Cancelling round.`);
-      await this._abortRound('Not enough funded players to start round.');
+    const seated = this._getSeatedPlayers();
+    if (seated.length < config.minPlayersToStart) {
+      this._cancelCountdownToWaiting();
       return;
     }
 
-    // Calculate total net prize pot (100% goes to the first Any Line winner)
-    const totalEntries = this.players.size;
-    const rawTotalSantim = totalEntries * this.tier.stakeSantim;
-    const netPotSantim = Math.floor(rawTotalSantim * (1 - this.rakePercent));
+    this.roundId = `r_${Date.now().toString(36)}_${this.tier.stakeETB}_${randomBytes(2).toString('hex')}`;
+    this.status = 'LOCKING';
+    this._notifyState();
+
+    gameDb.createRound({
+      roundId: this.roundId,
+      tierId: this.tier.id,
+      stakeSantim: this.tier.stakeSantim
+    });
+
+    // Debit all seated players in parallel
+    const fundedPlayers = [];
+    const failedRefs = [];
+
+    await Promise.all(
+      seated.map(async (p) => {
+        const debitRef = buildRef('deb', this.roundId, p.playerRef);
+        gameDb.recordTransactionPending({
+          ref: debitRef,
+          roundId: this.roundId,
+          playerRef: p.playerRef,
+          playerName: p.name,
+          token: p.token,
+          type: 'debit',
+          amountSantim: this.tier.stakeSantim
+        });
+
+        try {
+          const debitRes = await walletClient.debitBet({
+            token: p.token,
+            amount: this.tier.stakeSantim,
+            ref: debitRef,
+            roundId: this.roundId
+          });
+
+          gameDb.markTransactionSuccess({
+            ref: debitRef,
+            moveId: debitRes.moveId,
+            replayed: debitRes.replayed
+          });
+
+          p.debited = true;
+          p.debitRef = debitRef;
+          p.balance = debitRes.balance;
+          fundedPlayers.push(p);
+
+          if (p.socket && p.socket.readyState === 1) {
+            p.socket.send(JSON.stringify({
+              type: 'BET_DEBITED',
+              balance: debitRes.balance,
+              moveId: debitRes.moveId,
+              stakeSantim: this.tier.stakeSantim,
+              stakeETB: this.tier.stakeETB
+            }));
+          }
+        } catch (err) {
+          gameDb.markTransactionFailed({
+            ref: debitRef,
+            errorCode: err.code,
+            errorMessage: err.message
+          });
+          failedRefs.push(p.playerRef);
+
+          if (p.socket && p.socket.readyState === 1) {
+            p.socket.send(JSON.stringify({
+              type: 'BET_FAILED',
+              code: err.code || 'DEBIT_FAILED',
+              balance: err.balance,
+              message: formatArdiErrorMessage(err)
+            }));
+          }
+        }
+      })
+    );
+
+    // Remove players whose debits failed (or mark spectating if balance insufficient)
+    for (const ref of failedRefs) {
+      this.players.delete(ref);
+    }
+
+    // Abort & refund if not enough funded players remain
+    if (fundedPlayers.length < config.minPlayersToStart) {
+      await this.abortRound('Not enough funded players to start round. Bets have been refunded.');
+      return;
+    }
+
+    // Compute real pot strictly from collected real bets
+    const totalBetSantim = fundedPlayers.length * this.tier.stakeSantim;
+    const rakeSantim = Math.floor(totalBetSantim * this.rakePercent);
+    const netPotSantim = totalBetSantim - rakeSantim;
     this.totalPot = netPotSantim;
+
+    gameDb.updateRoundStart({
+      roundId: this.roundId,
+      totalBetSantim,
+      netPotSantim,
+      rakeSantim
+    });
 
     this.deck = createBallDeck();
     this.drawnBalls = [];
     this.drawnSet = new Set();
     this.winner = null;
+    this.claimingLock = false;
     this.status = 'PLAYING';
 
     this._notifyState();
@@ -249,13 +346,12 @@ class BingoRoom {
   _startBallCalling() {
     if (this.drawTimer) clearInterval(this.drawTimer);
 
-    // Call a ball every 3.2 seconds
-    this.drawTimer = setInterval(() => {
+    this.drawTimer = setInterval(async () => {
       if (this.deck.length === 0 || this.status !== 'PLAYING') {
         clearInterval(this.drawTimer);
         this.drawTimer = null;
         if (this.status === 'PLAYING') {
-          this._finishRound(null, 'All 75 balls drawn');
+          await this.abortRound('All 75 balls drawn without a Bingo claim. Bets refunded.');
         }
         return;
       }
@@ -263,9 +359,7 @@ class BingoRoom {
       const nextBall = this.deck.pop();
       this.drawnBalls.push(nextBall);
       this.drawnSet.add(nextBall.number);
-
-      // Check simulated players for Any Line win
-      this._checkBotBingo();
+      gameDb.updateRoundBalls(this.roundId, this.drawnBalls);
 
       this._notifyState({
         type: 'BALL_DRAWN',
@@ -273,152 +367,233 @@ class BingoRoom {
         drawnCount: this.drawnBalls.length,
         recentBalls: this.drawnBalls.slice(-6).reverse()
       });
-    }, 3200);
-  }
-
-  _checkBotBingo() {
-    if (this.winner || this.status !== 'PLAYING') return;
-
-    for (const p of this.players.values()) {
-      if (!p.isBot) continue;
-      const win = checkBingoWin(p.card, this.drawnSet);
-      if (win.hasLine) {
-        this.winner = {
-          playerRef: p.playerRef,
-          name: p.name,
-          pattern: `Any Line (${win.winningLines[0].description})`,
-          isBot: true,
-          prizeSantim: this.totalPot,
-          prizeETB: (this.totalPot / 100).toFixed(2)
-        };
-        this._finishRound(this.winner, `Bot Bingo: ${win.winningLines[0].description}`);
-        break;
-      }
-    }
+    }, config.ballIntervalMs);
   }
 
   async claimBingo(socketId) {
-    const player = this.players.get(socketId);
+    const player = this._findBySocket(socketId);
     if (!player || this.status !== 'PLAYING') {
-      return { success: false, message: 'Game is not currently active.' };
+      return { success: false, message: 'Game round is not currently active.' };
     }
-
-    if (this.winner) {
-      return { success: false, message: 'Bingo has already been claimed for this round!' };
+    if (!player.debited || player.spectating) {
+      return { success: false, message: 'You are spectating this round. Wait for the next round to play.' };
+    }
+    if (this.winner || this.claimingLock) {
+      return { success: false, message: 'Bingo has already been claimed for this round.' };
     }
 
     const winCheck = checkBingoWin(player.card, this.drawnSet);
-
-    // Win condition: Any Line ONLY (Row, Column, or Diagonal)
-    if (winCheck.hasLine) {
-      const prizeSantim = this.totalPot;
-      const winRef = `win_ln_${this.roundId}_${player.playerRef}`.slice(0, 64);
-
-      let newBalance = player.balance + prizeSantim;
-      if (!player.isBot) {
-        try {
-          const credRes = await walletClient.creditWin({
-            token: player.token,
-            amount: prizeSantim,
-            ref: winRef,
-            roundId: this.roundId
-          });
-          newBalance = credRes.balance;
-          player.balance = newBalance;
-        } catch (err) {
-          console.error(`Credit win failed for ${player.name}:`, err);
-        }
-      }
-
-      this.winner = {
-        playerRef: player.playerRef,
-        name: player.name,
-        pattern: `Any Line (${winCheck.winningLines[0].description})`,
-        isBot: false,
-        prizeSantim,
-        prizeETB: (prizeSantim / 100).toFixed(2),
-        newBalance
+    if (!winCheck.hasLine) {
+      return {
+        success: false,
+        message: 'No completed line yet! Complete any row, column, or diagonal.'
       };
-
-      this._finishRound(this.winner, 'Any Line Bingo claimed!');
-      return { success: true, type: 'LINE', prizeSantim };
     }
 
-    return {
-      success: false,
-      message: 'No completed line yet! Complete any horizontal row, vertical column, or diagonal.'
-    };
+    this.claimingLock = true;
+    try {
+      const prizeSantim = this.totalPot;
+      const winRef = buildRef('win', this.roundId, player.playerRef);
+      const pattern = `Any Line (${winCheck.winningLines[0].description})`;
+
+      gameDb.recordTransactionPending({
+        ref: winRef,
+        roundId: this.roundId,
+        playerRef: player.playerRef,
+        playerName: player.name,
+        token: player.token,
+        type: 'credit',
+        amountSantim: prizeSantim
+      });
+
+      try {
+        const credRes = await walletClient.creditWin({
+          token: player.token,
+          amount: prizeSantim,
+          ref: winRef,
+          roundId: this.roundId
+        });
+
+        gameDb.markTransactionSuccess({
+          ref: winRef,
+          moveId: credRes.moveId,
+          replayed: credRes.replayed
+        });
+
+        player.balance = credRes.balance;
+
+        this.winner = {
+          playerRef: player.playerRef,
+          name: player.name,
+          pattern,
+          prizeSantim,
+          prizeETB: (prizeSantim / 100).toFixed(2),
+          moveId: credRes.moveId,
+          newBalance: credRes.balance
+        };
+
+        this._finishRound(this.winner, 'Any Line Bingo claimed!');
+        return { success: true, type: 'LINE', prizeSantim, moveId: credRes.moveId };
+      } catch (err) {
+        gameDb.markTransactionFailed({
+          ref: winRef,
+          errorCode: err.code,
+          errorMessage: err.message
+        });
+
+        // Stop calling and finish round with payout pending desk intervention
+        this.winner = {
+          playerRef: player.playerRef,
+          name: player.name,
+          pattern,
+          prizeSantim,
+          prizeETB: (prizeSantim / 100).toFixed(2),
+          payoutError: formatArdiErrorMessage(err)
+        };
+        this._finishRound(this.winner, `Bingo verified, wallet payout refused (${err.code})`);
+        return {
+          success: false,
+          code: err.code,
+          message: `Bingo verified, but wallet payout failed: ${formatArdiErrorMessage(err)}`
+        };
+      }
+    } finally {
+      this.claimingLock = false;
+    }
   }
 
-  async _finishRound(winner, reason) {
+  _finishRound(winner, reason) {
     if (this.drawTimer) {
       clearInterval(this.drawTimer);
       this.drawTimer = null;
     }
 
     this.status = 'FINISHED';
+    if (this.roundId) {
+      gameDb.finishRound({
+        roundId: this.roundId,
+        status: 'FINISHED',
+        winnerRef: winner?.playerRef || null,
+        winnerName: winner?.name || null,
+        winnerPattern: winner?.pattern || null,
+        drawnBalls: this.drawnBalls
+      });
+    }
+
     this._notifyState({
       type: 'ROUND_FINISHED',
       winner,
       reason
     });
 
-    // 10 second intermission before next round starts
-    setTimeout(() => {
+    if (this.intermissionTimer) clearTimeout(this.intermissionTimer);
+    this.intermissionTimer = setTimeout(() => {
       this._resetRoom();
-    }, 10000);
+    }, config.intermissionMs);
   }
 
-  async _abortRound(reason) {
-    if (this.drawTimer) clearInterval(this.drawTimer);
-    if (this.countdownTimer) clearInterval(this.countdownTimer);
+  async abortRound(reason) {
+    if (this.drawTimer) {
+      clearInterval(this.drawTimer);
+      this.drawTimer = null;
+    }
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+
+    const activeRoundId = this.roundId;
 
     for (const p of this.players.values()) {
-      if (!p.isBot && p.debited && p.debitRef) {
-        const rfndRef = `rfnd_${this.roundId}_${p.playerRef}`.slice(0, 64);
+      if (p.debited && p.debitRef) {
+        const rfndRef = buildRef('rfnd', activeRoundId, p.playerRef);
+        gameDb.recordTransactionPending({
+          ref: rfndRef,
+          roundId: activeRoundId,
+          playerRef: p.playerRef,
+          playerName: p.name,
+          token: p.token,
+          type: 'refund',
+          amountSantim: this.tier.stakeSantim,
+          debitRef: p.debitRef
+        });
+
         try {
           const res = await walletClient.refundBet({
             token: p.token,
             ref: rfndRef,
             debitRef: p.debitRef
           });
+          gameDb.markTransactionSuccess({
+            ref: rfndRef,
+            moveId: res.moveId,
+            replayed: res.replayed
+          });
           p.balance = res.balance;
-          if (p.socket && p.socket.send) {
+          p.debited = false;
+
+          if (p.socket && p.socket.readyState === 1) {
             p.socket.send(JSON.stringify({
               type: 'BET_REFUNDED',
               balance: res.balance,
+              moveId: res.moveId,
               message: reason
             }));
           }
         } catch (err) {
-          console.error(`Refund failed for ${p.name}:`, err);
+          gameDb.markTransactionFailed({
+            ref: rfndRef,
+            errorCode: err.code,
+            errorMessage: err.message
+          });
+          console.error(`Refund failed for ${p.name}:`, err.message);
         }
       }
     }
 
-    this.status = 'WAITING';
+    if (activeRoundId) {
+      gameDb.finishRound({
+        roundId: activeRoundId,
+        status: 'ABORTED',
+        drawnBalls: this.drawnBalls
+      });
+    }
+
     this._resetRoom();
   }
 
   _resetRoom() {
+    if (this.intermissionTimer) {
+      clearTimeout(this.intermissionTimer);
+      this.intermissionTimer = null;
+    }
+
     this.status = 'WAITING';
     this.roundId = null;
-    this.countdown = 15;
+    this.countdown = config.countdownSeconds;
     this.drawnBalls = [];
     this.drawnSet.clear();
     this.winner = null;
     this.totalPot = 0;
+    this.claimingLock = false;
 
-    for (const p of this.players.values()) {
+    // Drop disconnected players, promote spectators & issue fresh cards for next round
+    for (const [playerRef, p] of this.players.entries()) {
+      if (!p.socket || p.socket.readyState !== 1) {
+        this.players.delete(playerRef);
+        continue;
+      }
       p.card = generateBingoCard();
+      p.spectating = false;
       p.debited = false;
       p.debitRef = null;
+      p.socket.send(JSON.stringify({
+        type: 'CARD_UPDATED',
+        card: p.card
+      }));
     }
 
-    this._ensureBots();
-
-    const realPlayers = Array.from(this.players.values()).filter(p => !p.isBot);
-    if (realPlayers.length > 0) {
+    if (this._getSeatedPlayers().length >= config.minPlayersToStart) {
       this._startCountdown();
     }
 
@@ -446,17 +621,20 @@ export class RoomManager {
   }
 
   getTiersSummary() {
-    return QUICK_MATCH_TIERS.map(t => {
+    return QUICK_MATCH_TIERS.map((t) => {
       const room = this.rooms.get(t.id);
+      const state = room.getPublicState();
       return {
         id: t.id,
         name: t.name,
         stakeETB: t.stakeETB,
         stakeSantim: t.stakeSantim,
         winCondition: 'Any Line',
-        status: room.status,
-        playerCount: room.players.size,
-        totalPot: room.totalPot
+        minPlayers: config.minPlayersToStart,
+        status: state.status,
+        countdown: state.countdown,
+        playerCount: state.playerCount,
+        totalPot: state.totalPot
       };
     });
   }
@@ -467,8 +645,71 @@ export class RoomManager {
 
   handlePlayerDisconnect(socketId) {
     for (const room of this.rooms.values()) {
-      if (room.players.has(socketId)) {
-        room.removePlayer(socketId);
+      room.removePlayerBySocket(socketId);
+    }
+  }
+
+  /**
+   * Startup crash recovery & graceful shutdown refund helper.
+   */
+  async recoverUnsettledDebits() {
+    const unsettled = gameDb.getUnsettledDebits();
+    if (unsettled.length === 0) return 0;
+
+    console.warn(`[Recovery] Found ${unsettled.length} unsettled debit(s) from prior run. Issuing refunds...`);
+    let refunded = 0;
+    const roundIds = new Set();
+
+    for (const tx of unsettled) {
+      roundIds.add(tx.round_id);
+      const rfndRef = buildRef('rfnd_rec', tx.round_id, tx.player_ref);
+      gameDb.recordTransactionPending({
+        ref: rfndRef,
+        roundId: tx.round_id,
+        playerRef: tx.player_ref,
+        playerName: tx.player_name,
+        token: tx.token,
+        type: 'refund',
+        amountSantim: tx.amount_santim,
+        debitRef: tx.ref
+      });
+
+      try {
+        const res = await walletClient.refundBet({
+          token: tx.token,
+          ref: rfndRef,
+          debitRef: tx.ref
+        });
+        gameDb.markTransactionSuccess({
+          ref: rfndRef,
+          moveId: res.moveId,
+          replayed: res.replayed
+        });
+        refunded++;
+      } catch (err) {
+        gameDb.markTransactionFailed({
+          ref: rfndRef,
+          errorCode: err.code,
+          errorMessage: err.message
+        });
+        console.error(`[Recovery] Refund failed for ${tx.ref}:`, err.message);
+      }
+    }
+
+    for (const rId of roundIds) {
+      gameDb.finishRound({ roundId: rId, status: 'ABORTED', drawnBalls: [] });
+    }
+    return refunded;
+  }
+
+  async shutdownAllRooms() {
+    for (const room of this.rooms.values()) {
+      if (room.status === 'LOCKING' || room.status === 'PLAYING') {
+        await room.abortRound('Server shutting down for maintenance. Bet refunded.');
+      } else {
+        if (room.countdownTimer) clearInterval(room.countdownTimer);
+        if (room.drawTimer) clearInterval(room.drawTimer);
+        if (room.intermissionTimer) clearTimeout(room.intermissionTimer);
       }
     }
   }

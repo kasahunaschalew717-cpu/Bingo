@@ -1,5 +1,6 @@
 // Mock implementation of Ardi Game Zone Wallet API (game-wallet-api.md)
 // Allows local standalone execution and testing of all financial flows.
+import { createHash } from 'crypto';
 
 class MockWalletService {
   constructor() {
@@ -25,10 +26,10 @@ class MockWalletService {
 
   _ensurePlayer(token, name = null, chatId = null, initialBalance = 50000) {
     if (!this.players.has(token)) {
-      const shortToken = token.replace(/^ags_/, '').slice(0, 6);
+      const digest = createHash('sha256').update(token).digest('hex').slice(0, 10);
       this.players.set(token, {
-        ref: `pref_${shortToken || 'user'}`,
-        name: name || `Play*****_${shortToken}`,
+        ref: `pref_${digest}`,
+        name: name || `Play*****_${digest.slice(0, 4)}`,
         chatId: chatId || 999888,
         balance: initialBalance, // in santim (100 santim = 1 ETB)
         createdAt: Date.now()

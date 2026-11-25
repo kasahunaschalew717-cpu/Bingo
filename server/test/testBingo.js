@@ -1,93 +1,147 @@
-// Automated Verification Test Suite for Ardi Bingo & Wallet API
-// Win Condition: Any Line ONLY (Horizontal, Vertical, or Diagonal)
+// Production Verification Suite for Ardi Bingo
+// Tests: CSPRNG Bingo Engine, Quick-Match Tiers, Ardi Wallet API Protocol & Retries,
+// SQLite Financial Ledger & Crash Recovery, and Real Multiplayer Accounting (No Bots).
 import assert from 'assert';
-import { generateBingoCard, checkBingoWin, createBallDeck } from '../src/bingoEngine.js';
-import { mockWallet } from '../src/mockWalletApi.js';
-import { QUICK_MATCH_TIERS } from '../src/roomManager.js';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
-console.log('--- 🧪 STARTING ARDI BINGO VERIFICATION SUITE (WIN CONDITION: ANY LINE) ---\n');
+// Configure isolated test environment before importing server modules
+const testDbPath = path.join(os.tmpdir(), `ardi_bingo_test_${Date.now()}.db`);
+process.env.DB_PATH = testDbPath;
+process.env.USE_MOCK_WALLET = 'true';
+process.env.ARDI_GAME_KEY = 'agk_test_prod_suite';
+process.env.MIN_PLAYERS_TO_START = '2';
 
-// 1. Bingo Engine: Any Line Verification
-console.log('1. Testing Bingo Engine (Any Line Win Condition):');
+const { generateBingoCard, checkBingoWin, createBallDeck } = await import('../src/bingoEngine.js');
+const { mockWallet } = await import('../src/mockWalletApi.js');
+const { walletClient } = await import('../src/walletClient.js');
+const { gameDb } = await import('../src/db.js');
+const { QUICK_MATCH_TIERS, RoomManager } = await import('../src/roomManager.js');
 
+console.log('--- 🧪 STARTING PRODUCTION BINGO VERIFICATION SUITE ---\n');
+
+// 1. Bingo Engine (Any Line Only)
+console.log('1. Testing CSPRNG Bingo Engine (Any Line Only):');
 const card = generateBingoCard();
-assert.strictEqual(card.cells.length, 25, 'Card must have 25 cells');
-assert.strictEqual(card.cells[12].isFree, true, 'Center cell (12) must be FREE');
+assert.strictEqual(card.cells.length, 25);
+assert.strictEqual(card.cells[12].isFree, true);
 
-// Test Horizontal Line
-const drawnHorizontal = new Set();
-for (let c = 0; c < 5; c++) {
-  drawnHorizontal.add(card.cells[c].number);
-}
-const hWin = checkBingoWin(card, drawnHorizontal);
-assert.strictEqual(hWin.hasLine, true, 'Horizontal row must trigger line win');
-console.log('  ✅ Any Line: Horizontal line detection works');
+const rowSet = new Set([0, 1, 2, 3, 4].map((c) => card.cells[c].number));
+assert.strictEqual(checkBingoWin(card, rowSet).hasLine, true);
 
-// Test Vertical Line
-const drawnVertical = new Set();
-for (let r = 0; r < 5; r++) {
-  const cell = card.cells[r * 5 + 0]; // Column B
-  drawnVertical.add(cell.number);
-}
-const vWin = checkBingoWin(card, drawnVertical);
-assert.strictEqual(vWin.hasLine, true, 'Vertical column must trigger line win');
-console.log('  ✅ Any Line: Vertical column detection works');
+const colSet = new Set([0, 1, 2, 3, 4].map((r) => card.cells[r * 5].number));
+assert.strictEqual(checkBingoWin(card, colSet).hasLine, true);
 
-// Test Diagonal Line
-const drawnDiag = new Set();
-[0, 6, 12, 18, 24].forEach(idx => {
-  if (card.cells[idx].number !== 0) drawnDiag.add(card.cells[idx].number);
-});
-const dWin = checkBingoWin(card, drawnDiag);
-assert.strictEqual(dWin.hasLine, true, 'Diagonal must trigger line win');
-console.log('  ✅ Any Line: Diagonal detection works');
+const diagSet = new Set([0, 6, 12, 18, 24].map((i) => card.cells[i].number));
+assert.strictEqual(checkBingoWin(card, diagSet).hasLine, true);
 
-// Incomplete line test
-const drawnIncomplete = new Set([card.cells[0].number, card.cells[1].number]);
-const noWin = checkBingoWin(card, drawnIncomplete);
-assert.strictEqual(noWin.hasLine, false, 'Incomplete line must not win');
-console.log('  ✅ Incomplete line correctly rejected');
+const partialSet = new Set([card.cells[0].number, card.cells[1].number]);
+assert.strictEqual(checkBingoWin(card, partialSet).hasLine, false);
 
-// 2. Quick Match Tiers
+const deck = createBallDeck();
+assert.strictEqual(deck.length, 75);
+assert.strictEqual(new Set(deck.map((b) => b.number)).size, 75);
+console.log('  ✅ Horizontal, Vertical, Diagonal, Incomplete rejection, and 75-ball deck verified');
+
+// 2. Quick-Match Tiers
 console.log('\n2. Testing Quick-Match Tiers:');
-const expectedStakes = [5, 10, 25, 50, 100];
-const actualStakes = QUICK_MATCH_TIERS.map(t => t.stakeETB);
-assert.deepStrictEqual(actualStakes, expectedStakes, 'Quick match stakes must match 5, 10, 25, 50, 100 ETB');
-console.log(`  ✅ 5 Tiers verified: ${actualStakes.join(', ')} ETB`);
+assert.deepStrictEqual(QUICK_MATCH_TIERS.map((t) => t.stakeETB), [5, 10, 25, 50, 100]);
+console.log('  ✅ All 5 Quick-Match tiers verified: 5, 10, 25, 50, 100 ETB');
 
-// 3. Ardi Wallet API Tests
-console.log('\n3. Testing Ardi Game Wallet API:');
-const testToken = `ags_test_${Date.now()}`;
-const authHeader = `Bearer agk_test_key_12345`;
+// 3. Ardi Wallet Client & Refusal Protocol
+console.log('\n3. Testing WalletClient & Ardi Protocol:');
+const p1Token = `ags_prod_p1_${Date.now()}`;
+const p2Token = `ags_prod_p2_${Date.now()}`;
 
-const sessionRes = mockWallet.handleSession(authHeader, { token: testToken });
-assert.strictEqual(sessionRes.status, 200);
-const startBal = sessionRes.body.balance;
+const who = await walletClient.whoami();
+assert.strictEqual(who.ok, true);
+assert.strictEqual(who.game.enabled, true);
 
-// Debit bet
-const roundId = `round_line_test_1`;
-const debitRef = `deb_${roundId}_test`;
-const debitRes = mockWallet.handleDebit(authHeader, {
-  token: testToken,
-  amount: 1000, // 10 ETB
-  ref: debitRef,
-  roundId
+const s1 = await walletClient.getSession(p1Token);
+const s2 = await walletClient.getSession(p2Token);
+assert.strictEqual(s1.balance, 50000);
+assert.strictEqual(s2.balance, 50000);
+
+// 4. SQLite Financial Ledger & Crash-Recovery Refund Flow
+console.log('\n4. Testing SQLite Ledger & Crash-Recovery Refunds:');
+const crashRoundId = `r_crash_${Date.now()}`;
+gameDb.createRound({ roundId: crashRoundId, tierId: 'tier_10', stakeSantim: 1000 });
+const debRef = `deb_${crashRoundId}_${s1.player.ref}`.slice(0, 64);
+
+gameDb.recordTransactionPending({
+  ref: debRef,
+  roundId: crashRoundId,
+  playerRef: s1.player.ref,
+  playerName: s1.player.name,
+  token: p1Token,
+  type: 'debit',
+  amountSantim: 1000
 });
-assert.strictEqual(debitRes.status, 200);
-assert.strictEqual(debitRes.body.balance, startBal - 1000);
-console.log(`  ✅ /debit 10 ETB bet placed (Balance: ${debitRes.body.balance} santim)`);
+const debRes = await walletClient.debitBet({ token: p1Token, amount: 1000, ref: debRef, roundId: crashRoundId });
+gameDb.markTransactionSuccess({ ref: debRef, moveId: debRes.moveId, replayed: debRes.replayed });
+assert.strictEqual(debRes.balance, 49000);
 
-// Credit 100% net pot for Any Line win
-const potSantim = 3600; // e.g. 4 players * 10 ETB = 40 ETB - 10% rake = 36 ETB
-const winRef = `win_ln_${roundId}_test`;
-const creditRes = mockWallet.handleCredit(authHeader, {
-  token: testToken,
-  amount: potSantim,
-  ref: winRef,
-  roundId
-});
-assert.strictEqual(creditRes.status, 200);
-assert.strictEqual(creditRes.body.balance, startBal - 1000 + potSantim);
-console.log(`  ✅ /credit 100% pot (${potSantim / 100} ETB) for Any Line Bingo credited successfully!`);
+// Simulate server restart finding unsettled debit
+const broadcastEvents = [];
+const rm = new RoomManager((tierId, payload) => broadcastEvents.push({ tierId, payload }));
+const recoveredCount = await rm.recoverUnsettledDebits();
+assert.strictEqual(recoveredCount, 1, 'Must recover and refund 1 unsettled debit');
+const afterRecoveryBal = await walletClient.getBalance(p1Token);
+assert.strictEqual(afterRecoveryBal, 50000, 'Player balance must be fully restored after crash recovery');
+assert.strictEqual(gameDb.getUnsettledDebits().length, 0, 'No unsettled debits should remain');
+console.log('  ✅ Crash recovery automatically refunded unsettled debit and restored 50,000 santim');
 
-console.log('\n--- 🎉 ALL TESTS PASSED! WIN CONDITION: ANY LINE ONLY ---');
+// 5. Real 2-Player Multiplayer Round (Zero Bots)
+console.log('\n5. Testing Real 2-Player Round & Pot Accounting (Zero Bots):');
+const room = rm.getRoom('tier_5'); // 5 ETB = 500 santim
+const fakeSock1 = { id: 'sock_1', readyState: 1, send: () => {} };
+const fakeSock2 = { id: 'sock_2', readyState: 1, send: () => {} };
+
+const player1 = room.addOrReconnectPlayer(fakeSock1, { token: p1Token, ...s1 });
+assert.strictEqual(room.status, 'WAITING', '1 player must stay in WAITING (no bots injected)');
+assert.strictEqual(room.getPublicState().playerCount, 1);
+
+const player2 = room.addOrReconnectPlayer(fakeSock2, { token: p2Token, ...s2 });
+assert.strictEqual(room.status, 'COUNTDOWN', '2 real players must start COUNTDOWN');
+assert.strictEqual(room.getPublicState().playerCount, 2);
+
+// Clear countdown timer & trigger round lock directly for deterministic test
+clearInterval(room.countdownTimer);
+room.countdownTimer = null;
+await room._startRound();
+
+assert.strictEqual(room.status, 'PLAYING');
+// 2 players * 500 santim = 1000 santim total bet; 10% rake = 100; net pot = 900 santim
+assert.strictEqual(room.totalPot, 900, 'Net pot must equal collected bets minus 10% rake (900 santim)');
+assert.strictEqual(await walletClient.getBalance(p1Token), 49500);
+assert.strictEqual(await walletClient.getBalance(p2Token), 49500);
+
+// Draw numbers matching row 0 of player1's card
+clearInterval(room.drawTimer);
+room.drawTimer = null;
+for (let c = 0; c < 5; c++) {
+  room.drawnSet.add(player1.card.cells[c].number);
+}
+
+const claimRes = await room.claimBingo('sock_1');
+assert.strictEqual(claimRes.success, true);
+assert.strictEqual(claimRes.prizeSantim, 900);
+assert.strictEqual(await walletClient.getBalance(p1Token), 50400, 'Winner must receive full 900 santim pot');
+
+const p1History = gameDb.getPlayerTransactions(s1.player.ref, 10);
+assert(p1History.some((tx) => tx.type === 'credit' && tx.amount_santim === 900 && tx.status === 'SUCCESS'));
+console.log('  ✅ Real 2-player round, 500 santim debits, 900 santim pot credit, and SQLite ledger verified');
+
+// Cleanup timers & DB
+await rm.shutdownAllRooms();
+gameDb.close();
+try {
+  fs.unlinkSync(testDbPath);
+  fs.unlinkSync(`${testDbPath}-wal`);
+  fs.unlinkSync(`${testDbPath}-shm`);
+} catch {
+  // ignore cleanup errors
+}
+
+console.log('\n--- 🎉 ALL PRODUCTION VERIFICATION TESTS PASSED! ---');

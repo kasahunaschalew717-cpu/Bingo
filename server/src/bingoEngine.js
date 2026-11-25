@@ -1,10 +1,11 @@
-// 75-Ball Ethiopian Parlor Bingo Engine
+// 75-Ball Ethiopian Parlor Bingo Engine (Cryptographically Shuffled)
 // Column ranges:
 // B: 1 - 15
 // I: 16 - 30
 // N: 31 - 45 (Center cell at row 2, col 2 is FREE)
 // G: 46 - 60
 // O: 61 - 75
+import { randomInt, randomBytes } from 'crypto';
 
 export const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
 
@@ -24,29 +25,29 @@ export function getBallLetter(num) {
   return 'O';
 }
 
-function getRandomUnique(min, max, count) {
-  const nums = [];
+function getCryptoUnique(min, max, count) {
   const pool = [];
   for (let i = min; i <= max; i++) pool.push(i);
+  const nums = [];
   for (let i = 0; i < count; i++) {
-    const idx = Math.floor(Math.random() * pool.length);
+    const idx = randomInt(0, pool.length);
     nums.push(pool.splice(idx, 1)[0]);
   }
   return nums;
 }
 
 /**
- * Generate a 5x5 Bingo Card
+ * Generate a 5x5 Bingo Card using CSPRNG
  * Returns 25-cell array in row-major order: index = row * 5 + col
  */
 export function generateBingoCard(cardId = null) {
-  const id = cardId || `card_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const id = cardId || `TKT-${randomBytes(3).toString('hex').toUpperCase()}`;
 
-  const colB = getRandomUnique(1, 15, 5);
-  const colI = getRandomUnique(16, 30, 5);
-  const colN = getRandomUnique(31, 45, 4); // 4 numbers + 1 free center
-  const colG = getRandomUnique(46, 60, 5);
-  const colO = getRandomUnique(61, 75, 5);
+  const colB = getCryptoUnique(1, 15, 5);
+  const colI = getCryptoUnique(16, 30, 5);
+  const colN = getCryptoUnique(31, 45, 4); // 4 numbers + 1 free center
+  const colG = getCryptoUnique(46, 60, 5);
+  const colO = getCryptoUnique(61, 75, 5);
 
   const columns = {
     B: colB,
@@ -81,8 +82,7 @@ export function generateBingoCard(cardId = null) {
 
 /**
  * Validates winning patterns against drawn numbers:
- * 1. Any Line (5 Horizontal rows, 5 Vertical columns, 2 Diagonals)
- * 2. Full House (all 24 numbered cells + free center)
+ * Win Condition: Any Line ONLY (5 Horizontal rows, 5 Vertical columns, 2 Diagonals)
  */
 export function checkBingoWin(card, drawnNumbersSet) {
   const isMarked = (cell) => cell.isFree || drawnNumbersSet.has(cell.number);
@@ -113,39 +113,35 @@ export function checkBingoWin(card, drawnNumbersSet) {
     }
   }
 
-  // Check Diagonal 1: Top-Left to Bottom-Right (0,0 -> 1,1 -> 2,2 -> 3,3 -> 4,4)
+  // Check Diagonal 1: Top-Left to Bottom-Right
   const diag1Cells = card.cells.filter(cell => cell.row === cell.col);
   if (diag1Cells.every(isMarked)) {
     winningLines.push({
       type: 'diagonal_line',
-      description: 'Diagonal (Top-Left to Bottom-Right)',
+      description: 'Diagonal (TL-BR)',
       cellIndices: diag1Cells.map(c => c.index)
     });
   }
 
-  // Check Diagonal 2: Top-Right to Bottom-Left (0,4 -> 1,3 -> 2,2 -> 3,1 -> 4,0)
+  // Check Diagonal 2: Top-Right to Bottom-Left
   const diag2Cells = card.cells.filter(cell => cell.row + cell.col === 4);
   if (diag2Cells.every(isMarked)) {
     winningLines.push({
       type: 'diagonal_line',
-      description: 'Diagonal (Top-Right to Bottom-Left)',
+      description: 'Diagonal (TR-BL)',
       cellIndices: diag2Cells.map(c => c.index)
     });
   }
 
-  // Check Full House (Blackout: all cells must be marked)
-  const isFullHouse = card.cells.every(isMarked);
-
   return {
     hasLine: winningLines.length > 0,
-    hasFullHouse: isFullHouse,
     winningLines,
     totalLines: winningLines.length
   };
 }
 
 /**
- * Creates a randomized 75-ball draw deck
+ * Creates a cryptographically shuffled 75-ball draw deck
  */
 export function createBallDeck() {
   const deck = [];
@@ -155,9 +151,8 @@ export function createBallDeck() {
       letter: getBallLetter(i)
     });
   }
-  // Fisher-Yates shuffle
   for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(0, i + 1);
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
   return deck;

@@ -1,122 +1,68 @@
-# 🎱 Ethiopian Parlor Bingo Game for Ardi Game Zone
+# 🎱 Ethiopian Parlor Bingo — Ardi Game Zone
 
-A real-time, multiplayer 75-Ball Ethiopian Parlor Bingo game designed for **Ardi Game Zone** (Telegram Mini App), fully integrated with the **Ardi Game Wallet API** (`game-wallet-api.md`) and styled with 100% visual fidelity to the **Ardi Game Zone sample UI**.
-
----
-
-## ✨ Features
-
-- **Ardi Game Zone Design System**:
-  - Deep midnight navy palette (`#070E1B`, `#0E1A32`, `#1B2D50`) with warm gold/amber accents (`#FFA800`), electric cyan highlights (`#00A3FF`), and emerald cash green (`#00C070`).
-  - Top header with Ardi logo, live ETB wallet pill, and `+ Cash` action button.
-  - "Invite & Extra Bonus" promo banner matching the Telegram Mini App look.
-  - Game cards styled after Ardi's parlor cards with live player counts and pots.
-  - Room code input (`ENTER ROOM CODE (E.G. 7K2M9X)`) with gold Join button.
-  - Floating bottom navigation with glowing center gamepad button.
-
-- **5 Quick-Match Parlor Stakes**:
-  - **Bronze Parlor**: 5 ETB (500 santim)
-  - **Silver Parlor**: 10 ETB (1,000 santim)
-  - **Gold Parlor**: 25 ETB (2,500 santim)
-  - **Platinum Parlor**: 50 ETB (5,000 santim)
-  - **Diamond Parlor**: 100 ETB (10,000 santim)
-
-- **Win Condition: Any Line ONLY**:
-  - Any 5 Horizontal Rows
-  - Any 5 Vertical Columns
-  - Any 2 Diagonals (Top-Left to Bottom-Right, Top-Right to Bottom-Left)
-  - **Prize Payout**: The first player to complete Any Line wins **100% of the net prize pot**! The round concludes immediately upon a validated line claim.
-
-- **Interactive Gameplay**:
-  - Standard 5×5 75-Ball Bingo ticket (B: 1–15, I: 16–30, N: 31–45 + FREE center, G: 46–60, O: 61–75).
-  - Ticket regeneration ("🎲 Change Ticket") during countdown.
-  - Live animated 3D ball caller with recent drawn balls strip.
-  - Optional **Auto-Daub** toggle for effortless mobile play + manual tactile daubing.
-  - Giant pulsating gold **BINGO!** button when Any Line is ready.
-  - Zero-asset Web Audio procedural sound effects (chimes, clicks, brass fanfare).
-  - Full-screen confetti celebrations on victory!
-
-- **Ardi Game Wallet API (`game-wallet-api.md`) Compliance**:
-  - Server-side custody of secret `ARDI_GAME_KEY` (`agk_...`). Never exposed to the frontend.
-  - Whole-santim accounting ($100\text{ santim} = 1\text{ ETB}$).
-  - Full support for `session`, `balance`, `debit`, `credit`, and `refund`.
-  - Idempotent request handling with unique `ref` strings.
-  - Automated refund if a round aborts before kickoff.
-  - Iframe parent communication via `postMessage`:
-    - `window.parent.postMessage({ type: "ardi:balance" }, "*")`
-    - `window.parent.postMessage({ type: "ardi:close" }, "*")`
-  - Built-in **Mock Wallet Server** for instant local development without external dependencies.
+Production-ready, real-time multiplayer **75-Ball Ethiopian Parlor Bingo** integrated with the **Ardi Game Wallet API** (`game-wallet-api.md`) and styled after the **Ardi Game Zone** UI (`/Sample`).
 
 ---
 
-## 🚀 Quick Start
+## ✨ Production Architecture
 
-### 1. Prerequisites
-- Node.js 18+ (tested on Node.js v24)
-- npm 10+
+- **Zero Bots / Real-Money Integrity**: Rounds require real authenticated players (`MIN_PLAYERS_TO_START`, default `2`). Prize pots equal strictly collected real bets minus configurable parlor rake (`RAKE_PERCENT`, default `10%`), guaranteeing compliance with Ardi's daily payout limit.
+- **Persistent SQLite Audit Ledger (`node:sqlite`)**: Every round, debit, credit, and refund is persisted in SQLite (`server/data/bingo.db`). On startup or graceful shutdown (`SIGINT`/`SIGTERM`), any unsettled debits from interrupted rounds are automatically refunded via `/refund`.
+- **Resilient Ardi Wallet Client**:
+  - Reads `ARDI_API_URL` and `ARDI_GAME_KEY` from environment variables (never exposed to the browser).
+  - Verifies desk configuration at boot via `/api/games/v1/whoami`.
+  - Retries `5xx` / `SERVER_ERROR` / network timeouts automatically with the exact same `ref` for idempotency.
+  - Handles all Ardi refusal codes (`INSUFFICIENT_FUNDS`, `SESSION_EXPIRED`, `GAME_OFF`, `PARLOR_PAUSED`, `BET_LIMIT`, `PAYOUT_LIMIT`, `PLAYER_CLOSED`).
+- **CSPRNG Ball & Ticket Generation**: Uses Node's `crypto.randomInt` for ticket generation and 75-ball shuffling.
+- **Reconnect & Spectator Support**: Mobile Telegram WebView disconnects reconnect seamlessly to their active ticket and drawn balls; mid-round joiners enter as spectators queued for the next round.
+- **Win Condition — Any Line Only**: First player to complete any horizontal row, vertical column, or diagonal wins **100% of the net prize pot**.
+- **5 Quick-Match Parlors**: `5 ETB`, `10 ETB`, `25 ETB`, `50 ETB`, and `100 ETB`.
 
-### 2. Start the Production Server
-The production server serves both the backend API/WebSockets and the compiled frontend single-page application on port 3001:
+---
 
+## 🚀 Production Deployment
+
+### 1. Configure Environment
+Copy `.env.example` to `.env` and fill in your live Ardi Desk credentials:
+
+```env
+PORT=3001
+NODE_ENV=production
+ARDI_API_URL=https://your-ardi-backend.example
+ARDI_GAME_KEY=agk_your_real_game_key_from_desk
+USE_MOCK_WALLET=false
+RAKE_PERCENT=0.10
+MIN_PLAYERS_TO_START=2
+COUNTDOWN_SECONDS=15
+BALL_INTERVAL_MS=3000
+DB_PATH=./server/data/bingo.db
+```
+
+### 2. Build Frontend & Start Server
 ```bash
+npm run build
 npm start
 ```
 
-Open your browser to:
-```
-http://localhost:3001
-```
-
-To test as a specific player with a token from the Ardi Telegram bot:
-```
-http://localhost:3001?token=ags_sample_player_1&chat_id=12345678
-```
+- Health check endpoint: `GET /health`
+- Ardi Desk URL pattern: `https://your-bingo-domain.example/?token={token}&chat_id={chatId}`
 
 ---
 
-## 🛠️ Development Mode
+## 🛠️ Local Sandbox Testing (Development Only)
 
-To run frontend and backend with hot-module reloading:
+When running locally without `ARDI_API_URL` (`NODE_ENV=development` or `USE_MOCK_WALLET=true`), the server activates a local mock wallet so you can test multiplayer across two browser tabs:
+- Tab 1: `http://localhost:3001?token=ags_sample_player_1`
+- Tab 2: `http://localhost:3001?token=ags_sample_player_2`
 
-```bash
-# Terminal 1: Backend server
-npm run dev:server
-
-# Terminal 2: Vite frontend
-npm run dev:client
-```
-The Vite dev server runs on `http://localhost:5173` and automatically proxies `/api` and `/ws` to `http://localhost:3001`.
+Mock routes are automatically disabled in production (`NODE_ENV=production`, `USE_MOCK_WALLET=false`).
 
 ---
 
-## 🧪 Running Automated Tests
+## 🧪 Automated Test Suite
 
-Run the automated verification suite:
+Run the full production verification suite (Bingo engine, CSPRNG, Wallet API protocol, SQLite crash-recovery refunds, and real 2-player round accounting):
 
 ```bash
 node server/test/testBingo.js
-```
-
----
-
-## ⚙️ Configuration & Production Deployment
-
-To connect the game with the live Ardi Game Zone desk backend:
-
-1. Create a `.env` file in `server/.env` (or configure server environment variables):
-```env
-PORT=3001
-ARDI_API_URL=https://your-desk-backend.example
-ARDI_GAME_KEY=agk_your_assigned_secret_key_from_desk
-USE_MOCK_WALLET=false
-```
-
-2. Build the frontend:
-```bash
-npm run build
-```
-
-3. Launch the server behind your reverse proxy:
-```bash
-npm start
 ```

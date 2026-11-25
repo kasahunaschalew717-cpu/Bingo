@@ -1,12 +1,21 @@
 export interface Player {
   playerRef: string;
   name: string;
-  isBot: boolean;
-  balance?: number;
+  spectating?: boolean;
+  debited?: boolean;
+}
+
+export interface DeskGameInfo {
+  slug: string;
+  title: string;
+  txName: string;
+  enabled: boolean;
 }
 
 export interface SessionData {
   ok: boolean;
+  mode?: 'production' | 'sandbox';
+  game?: DeskGameInfo;
   player: {
     ref: string;
     chatId: number | null;
@@ -39,10 +48,11 @@ export interface WinnerInfo {
   playerRef: string;
   name: string;
   pattern: string;
-  isBot: boolean;
   prizeSantim: number;
   prizeETB: string;
+  moveId?: string;
   newBalance?: number;
+  payoutError?: string;
 }
 
 export interface RoomState {
@@ -51,13 +61,16 @@ export interface RoomState {
   stakeETB: number;
   stakeSantim: number;
   winCondition: string;
+  minPlayers: number;
   status: 'WAITING' | 'COUNTDOWN' | 'LOCKING' | 'PLAYING' | 'FINISHED';
   roundId: string | null;
   countdown: number;
   playerCount: number;
+  totalConnected: number;
   players: Player[];
   currentBall: Ball | null;
   recentBalls: Ball[];
+  drawnBalls: Ball[];
   drawnCount: number;
   totalPot: number; // in santim
   winner: WinnerInfo | null;
@@ -69,7 +82,20 @@ export interface RoomTierSummary {
   stakeETB: number;
   stakeSantim: number;
   winCondition: string;
-  status: string;
+  minPlayers: number;
+  status: 'WAITING' | 'COUNTDOWN' | 'LOCKING' | 'PLAYING' | 'FINISHED';
+  countdown: number;
   playerCount: number;
   totalPot: number;
+}
+
+export interface TransactionRecord {
+  ref: string;
+  round_id: string;
+  type: 'debit' | 'credit' | 'refund';
+  amount_santim: number;
+  move_id: string | null;
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'REPLAYED';
+  error_code: string | null;
+  created_at: number;
 }
