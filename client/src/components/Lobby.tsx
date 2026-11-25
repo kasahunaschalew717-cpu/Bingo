@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Sparkles, Users, Trophy, Clock, History, BookOpen } from 'lucide-react';
+import { ArrowRight, Users, Trophy, Clock, History, BookOpen } from 'lucide-react';
 import type { RoomTierSummary } from '../types';
 import { formatETB } from '../utils/currency';
 
@@ -18,42 +18,10 @@ export const Lobby: React.FC<LobbyProps> = ({
   onOpenHistory,
   onOpenRules
 }) => {
-  const totalOnline = tiers.reduce((sum, t) => sum + (t.playerCount || 0), 0);
-
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4 max-w-md mx-auto w-full">
-      {/* 1. Feature Banner (Ardi Game Zone Style) */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0047b3] via-[#092654] to-[#0a152e] border border-[#163a75] p-4 text-white shadow-lg">
-        <div className="absolute -top-10 -right-10 w-36 h-36 bg-[#00a3ff]/20 rounded-full blur-2xl pointer-events-none"></div>
-
-        <div className="relative z-10 flex justify-between items-center gap-3">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#00a3ff]/20 border border-[#00a3ff]/40 text-[#58c4ff] text-[10px] font-bold uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00c070] animate-pulse"></span>
-              <span>{totalOnline} Playing Live</span>
-            </div>
-            <h2 className="text-lg font-bold text-white font-serif tracking-wide pt-0.5">
-              Ethiopian Parlor Bingo
-            </h2>
-            <p className="text-xs text-slate-200 leading-snug">
-              75-Ball Quick-Match • First to complete <strong className="text-[#ffa800]">Any Line</strong> wins 100% of the net pot.
-            </p>
-          </div>
-
-          <div className="flex flex-col items-center justify-center shrink-0 select-none">
-            <div className="text-[11px] font-black tracking-widest text-white uppercase">
-              ANY LINE
-            </div>
-            <div className="text-lg font-black text-[#ffa800] tracking-tight drop-shadow-[0_2px_8px_rgba(255,168,0,0.7)]">
-              100% POT
-            </div>
-            <Sparkles className="w-4 h-4 text-yellow-300 mt-0.5" />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Section Heading */}
-      <div className="flex items-center justify-between pt-1">
+      {/* Section Heading */}
+      <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-white font-serif tracking-wide">
           Parlor Games
         </h1>
@@ -75,7 +43,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         </div>
       </div>
 
-      {/* 3. Quick-Match Tiers (5, 10, 25, 50, 100 ETB) */}
+      {/* Quick-Match Tiers (5, 10, 25, 50, 100 ETB) */}
       <div className="space-y-2.5">
         {tiers.map((tier) => {
           const hasEnoughBalance = playerBalanceSantim >= tier.stakeSantim;
