@@ -3,91 +3,53 @@ import type { Ball } from '../types';
 
 interface TierEmblemProps {
   tierId: string;
-  stakeETB: number;
 }
 
 const TIER_PALETTES: Record<string, {
-  ring: string;
-  bgFrom: string;
-  bgTo: string;
-  accent: string;
-  pillBg: string;
-  pillText: string;
+  containerBg: string;
+  primary: string;
+  secondary: string;
 }> = {
   tier_5: {
-    ring: 'border-[#cd7f32]/50',
-    bgFrom: 'from-[#281b12]',
-    bgTo: 'to-[#0d1424]',
-    accent: '#e09145',
-    pillBg: 'bg-[#cd7f32]',
-    pillText: 'text-black'
+    containerBg: 'bg-[#2a2121]',
+    primary: '#d97742',
+    secondary: '#6e6563'
   },
   tier_10: {
-    ring: 'border-[#94a3b8]/45',
-    bgFrom: 'from-[#1d2b44]',
-    bgTo: 'to-[#0b1324]',
-    accent: '#cbd5e1',
-    pillBg: 'bg-[#cbd5e1]',
-    pillText: 'text-black'
+    containerBg: 'bg-[#252b3b]',
+    primary: '#e2e8f0',
+    secondary: '#64748b'
   },
   tier_25: {
-    ring: 'border-[#ffa800]/60',
-    bgFrom: 'from-[#2d210b]',
-    bgTo: 'to-[#0c1426]',
-    accent: '#ffa800',
-    pillBg: 'bg-[#ffa800]',
-    pillText: 'text-black'
+    containerBg: 'bg-[#29231c]',
+    primary: '#f5b027',
+    secondary: '#786c57'
   },
   tier_50: {
-    ring: 'border-[#38bdf8]/55',
-    bgFrom: 'from-[#102945]',
-    bgTo: 'to-[#0a1324]',
-    accent: '#38bdf8',
-    pillBg: 'bg-[#38bdf8]',
-    pillText: 'text-black'
+    containerBg: 'bg-[#17283d]',
+    primary: '#38bdf8',
+    secondary: '#4c6785'
   },
   tier_100: {
-    ring: 'border-[#a855f7]/60',
-    bgFrom: 'from-[#251542]',
-    bgTo: 'to-[#0b1224]',
-    accent: '#c084fc',
-    pillBg: 'bg-gradient-to-r from-[#a855f7] to-[#38bdf8]',
-    pillText: 'text-white'
+    containerBg: 'bg-[#23203b]',
+    primary: '#a78bfa',
+    secondary: '#5b5685'
   }
 };
 
-export const TierEmblem: React.FC<TierEmblemProps> = ({ tierId, stakeETB }) => {
+export const TierEmblem: React.FC<TierEmblemProps> = ({ tierId }) => {
   const palette = TIER_PALETTES[tierId] || TIER_PALETTES.tier_25;
 
   return (
     <div
-      className={`relative w-12 h-12 rounded-2xl bg-gradient-to-br ${palette.bgFrom} ${palette.bgTo} border ${palette.ring} flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)] shrink-0`}
+      className={`w-11 h-11 rounded-xl ${palette.containerBg} flex items-center justify-center shrink-0`}
     >
-      {/* Bespoke Mini 3x3 Bingo Ticket SVG */}
-      <svg viewBox="0 0 36 36" className="w-7 h-7" fill="none" aria-hidden="true">
-        <rect x="4" y="4" width="28" height="28" rx="6" fill="#081121" stroke={palette.accent} strokeWidth="1.75" strokeOpacity="0.85" />
-        <rect x="4" y="4" width="28" height="7" rx="4" fill={palette.accent} fillOpacity="0.22" />
-        <line x1="4" y1="11" x2="32" y2="11" stroke={palette.accent} strokeWidth="1.2" strokeOpacity="0.6" />
-        {/* Grid cells */}
-        <circle cx="11" cy="16" r="2.2" fill={palette.accent} />
-        <circle cx="18" cy="16" r="2.2" fill="#23375d" />
-        <circle cx="25" cy="16" r="2.2" fill="#23375d" />
-
-        <circle cx="11" cy="22" r="2.2" fill="#23375d" />
-        <circle cx="18" cy="22" r="2.6" fill={palette.accent} />
-        <circle cx="25" cy="22" r="2.2" fill="#23375d" />
-
-        <circle cx="11" cy="28" r="2.2" fill="#23375d" />
-        <circle cx="18" cy="28" r="2.2" fill="#23375d" />
-        <circle cx="25" cy="28" r="2.2" fill={palette.accent} />
+      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden="true">
+        <rect x="3" y="3" width="7.5" height="7.5" rx="2" fill={palette.primary} />
+        <rect x="13.5" y="3" width="7.5" height="7.5" rx="2" fill={palette.secondary} />
+        <rect x="3" y="13.5" width="7.5" height="7.5" rx="2" fill={palette.secondary} />
+        <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" fill={palette.primary} />
       </svg>
-
-      {/* Stake Pill Badge */}
-      <div
-        className={`absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded-md ${palette.pillBg} ${palette.pillText} text-[10px] font-black leading-none shadow-[0_2px_6px_rgba(0,0,0,0.6)] border border-[#070e1b]`}
-      >
-        {stakeETB}
-      </div>
     </div>
   );
 };

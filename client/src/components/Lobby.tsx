@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Users, Trophy, Clock, History, BookOpen } from 'lucide-react';
+import { Clock, History, BookOpen } from 'lucide-react';
 import type { RoomTierSummary } from '../types';
 import { formatETB } from '../utils/currency';
 import { formatCountdown } from '../utils/time';
@@ -48,12 +48,12 @@ export const Lobby: React.FC<LobbyProps> = ({
       </div>
 
       {/* Quick-Match Tiers (5, 10, 25, 50, 100 ETB) */}
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {tiers.map((tier) => {
           const hasEnoughBalance = playerBalanceSantim >= tier.stakeSantim;
           const isPlaying = tier.status === 'PLAYING' || tier.status === 'LOCKING';
           const isCountdown = tier.status === 'COUNTDOWN';
-          const potDisplay = tier.totalPot > 0 ? `${formatETB(tier.totalPot)} ETB` : 'Open';
+          const shortTitle = tier.name.replace(/\s+Parlor$/i, '');
 
           return (
             <div
@@ -62,16 +62,16 @@ export const Lobby: React.FC<LobbyProps> = ({
                 sound.unlockAudio();
                 onSelectTier(tier.id);
               }}
-              className="group rounded-2xl bg-gradient-to-br from-[#101e38] to-[#0b1528] hover:from-[#132442] hover:to-[#0d1930] border border-[#1c3057] hover:border-[#2c4b85] px-3.5 py-3 transition-all duration-150 shadow-[0_6px_18px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)] flex items-center justify-between gap-3 cursor-pointer"
+              className="rounded-2xl bg-[#111b2e] hover:bg-[#15223a] border border-[#1e2e4d] hover:border-[#2a426e] px-3.5 py-3 transition-all duration-150 flex items-center justify-between gap-3 cursor-pointer"
             >
-              {/* Left: Tier Emblem + 2-Line Info */}
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <TierEmblem tierId={tier.id} stakeETB={tier.stakeETB} />
+              {/* Left: 2x2 Grid Emblem + Tier Label & Dot Status */}
+              <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                <TierEmblem tierId={tier.id} />
 
                 <div className="flex flex-col min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
-                    <h3 className="text-[15px] font-bold text-white font-serif tracking-tight truncate">
-                      {tier.name}
+                    <h3 className="text-[15px] font-bold text-white tracking-tight truncate">
+                      {shortTitle}
                     </h3>
                     {isPlaying && (
                       <span className="px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-[9px] font-bold text-red-400 uppercase tracking-wider shrink-0">
@@ -86,21 +86,22 @@ export const Lobby: React.FC<LobbyProps> = ({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-[#8ea4c9] mt-1 tabular-nums whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      <Users className="w-3 h-3 text-[#00a3ff] shrink-0" />
-                      <span>{tier.playerCount}/{tier.minPlayers}+</span>
-                    </span>
-                    <span className="text-[#2c436e]">•</span>
-                    <span className="inline-flex items-center gap-1 text-[#00c070] font-semibold">
-                      <Trophy className="w-3 h-3 shrink-0" />
-                      <span>{potDisplay}</span>
-                    </span>
+                  <div className="flex items-center gap-1.5 text-xs text-[#8ea4c9] mt-0.5 tabular-nums whitespace-nowrap">
+                    <span className="w-2 h-2 rounded-full bg-[#22c55e] shrink-0"></span>
+                    <span>{tier.playerCount}/{tier.minPlayers}+</span>
+                    {tier.totalPot > 0 && (
+                      <>
+                        <span className="text-[#364e78]">•</span>
+                        <span className="text-[#00c070] font-semibold">
+                          {formatETB(tier.totalPot)} ETB
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Right: Ardi Amber CTA Pill */}
+              {/* Right: Solid Amber Pill */}
               <button
                 type="button"
                 onClick={(e) => {
@@ -108,14 +109,13 @@ export const Lobby: React.FC<LobbyProps> = ({
                   sound.unlockAudio();
                   onSelectTier(tier.id);
                 }}
-                className={`px-3.5 py-2 rounded-full font-black text-xs tracking-wide transition-all duration-150 inline-flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
+                className={`min-w-[82px] px-4 py-2 rounded-full font-extrabold text-xs tracking-wide transition-all duration-150 text-center shrink-0 whitespace-nowrap cursor-pointer ${
                   hasEnoughBalance
-                    ? 'bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-[#070e1b] shadow-[0_4px_12px_rgba(255,168,0,0.3)]'
+                    ? 'bg-[#f5a623] hover:bg-[#ffb636] active:scale-95 text-[#070e1b]'
                     : 'bg-[#1a2947] border border-[#283d66] text-[#8ea4c9] hover:text-white'
                 }`}
               >
                 <span className="tabular-nums">{tier.stakeETB} ETB</span>
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.75]" />
               </button>
             </div>
           );
