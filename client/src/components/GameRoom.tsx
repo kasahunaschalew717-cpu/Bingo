@@ -375,7 +375,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             {roomState?.name || 'Bingo Parlor'}
           </span>
           <span className="text-[10px] text-[#ffa800] font-bold tracking-wide">
-            Stake: {roomState?.stakeETB || 5} ETB
+            {roomState?.stakeETB || 5} ETB
           </span>
         </div>
 
@@ -404,8 +404,8 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
       {/* Spectator / Queued notice */}
       {spectating && (
-        <div className="mb-2 p-2.5 rounded-xl bg-[#00a3ff]/15 border border-[#00a3ff]/40 text-[#58c4ff] text-xs font-bold text-center">
-          Round in Progress — You are queued for the next round
+        <div className="mb-2 p-2 rounded-xl bg-[#00a3ff]/15 border border-[#00a3ff]/40 text-[#58c4ff] text-xs font-bold text-center">
+          Round in progress — Queued for next round
         </div>
       )}
 
@@ -443,7 +443,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
       {/* 3. Game State Display */}
       {status === 'WAITING' || status === 'COUNTDOWN' || status === 'LOCKING' ? (
-        <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] p-4 text-center space-y-2.5 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
+        <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] p-3.5 text-center space-y-2.5 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
           <div className="flex items-center justify-center gap-2">
             <span
               className={`w-2 h-2 rounded-full ${status === 'COUNTDOWN' ? 'bg-[#00c070] animate-ping' : 'bg-[#ffa800] animate-pulse'
@@ -451,10 +451,10 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             ></span>
             <span className="text-[11px] font-bold text-[#8ea4c9] uppercase tracking-wider">
               {status === 'LOCKING'
-                ? 'Locking Bets'
+                ? 'Starting'
                 : status === 'COUNTDOWN'
-                  ? 'Round Starting'
-                  : `Waiting for Players (${roomState?.playerCount || 0}/${minPlayers})`}
+                  ? 'Starting in'
+                  : 'Waiting for Players'}
             </span>
           </div>
 
@@ -462,16 +462,12 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             {status === 'COUNTDOWN'
               ? `${roomState?.countdown}s`
               : status === 'LOCKING'
-                ? 'Locking...'
-                : `${roomState?.playerCount || 0} / ${minPlayers}+`}
+                ? '...'
+                : `${roomState?.playerCount || 0} / ${minPlayers}`}
           </div>
 
-          <p className="text-xs text-[#8ea4c9]">
-            Win Condition: Complete <strong className="text-[#ffa800]">Any Line</strong> (Row, Column, or Diagonal) for 100% of the net pot.
-          </p>
-
           {!spectating && (status === 'WAITING' || status === 'COUNTDOWN') && (
-            <div className="flex items-center justify-center gap-2 pt-1">
+            <div className="flex items-center justify-center pt-0.5">
               <button
                 onClick={() => {
                   setTicketSelectError(null);
@@ -480,7 +476,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
                 className="px-4 py-2 rounded-full bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-xs font-black text-[#070e1b] flex items-center gap-1.5 shadow-[0_4px_12px_rgba(255,168,0,0.3)] cursor-pointer transition-all"
               >
                 <Ticket className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Select Ticket {ticketNumber ? `(#${ticketNumber})` : ''}</span>
+                <span>Select Ticket {ticketNumber ? `#${ticketNumber}` : ''}</span>
               </button>
             </div>
           )}
@@ -491,11 +487,11 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           <div className="flex items-center justify-between mb-2.5 px-1">
             <span className="text-[11px] font-bold text-[#8ea4c9] uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#ef4444] animate-pulse"></span>
-              Live Ball Caller
+              Ball Caller
             </span>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold tabular-nums text-[#00a3ff]">
-                {roomState?.drawnCount || 0} / 75
+                {roomState?.drawnCount || 0}/75
               </span>
               <button
                 onClick={() => setShowBoard(!showBoard)}
@@ -511,15 +507,10 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             <BingoBall3D ball={currentBall || null} size="lg" />
 
             <div className="flex-1 overflow-x-auto flex items-center gap-2 py-1">
-              {recentBalls.length > 1 ? (
+              {recentBalls.length > 1 &&
                 recentBalls.slice(1, 6).map((b, i) => (
                   <BingoBall3D key={`${b.letter}-${b.number}-${i}`} ball={b} size="sm" />
-                ))
-              ) : (
-                <span className="text-xs text-[#647aa1] italic">
-                  {currentBall ? 'Previous balls appear here' : 'First ball incoming...'}
-                </span>
-              )}
+                ))}
             </div>
           </div>
 
@@ -571,9 +562,11 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             <span>Auto-Daub: {autoDaub ? 'ON' : 'OFF'}</span>
           </button>
 
-          <span className="text-[11px] text-[#7e92b4] font-semibold">
-            {hasLineBingo ? 'Any Line Ready to Claim' : 'Win: Any Row, Col, or Diag'}
-          </span>
+          {hasLineBingo && (
+            <span className="text-[11px] text-[#ffa800] font-bold">
+              Line Ready
+            </span>
+          )}
         </div>
 
         <button
@@ -587,7 +580,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             }`}
         >
           <Sparkles className="w-5 h-5 fill-current" />
-          <span>{spectating ? 'WAITING NEXT ROUND' : 'BINGO!'}</span>
+          <span>{spectating ? 'NEXT ROUND' : 'BINGO!'}</span>
           <Sparkles className="w-5 h-5 fill-current" />
         </button>
       </div>

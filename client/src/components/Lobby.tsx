@@ -22,15 +22,10 @@ export const Lobby: React.FC<LobbyProps> = ({
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-3.5 max-w-md mx-auto w-full">
       {/* Section Heading */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white font-serif tracking-wide leading-tight">
-            Parlor Games
-          </h1>
-          <p className="text-[11px] text-[#8ea4c9] font-medium mt-0.5">
-            Win Condition: <span className="text-[#ffa800] font-semibold">Any Line</span> • 100% Net Pot
-          </p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white font-serif tracking-wide leading-tight">
+          Parlor Games
+        </h1>
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button

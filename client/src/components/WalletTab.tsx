@@ -97,24 +97,21 @@ export const WalletTab: React.FC<WalletTabProps> = ({
         <div className="text-3xl font-black text-white">
           {formatETB(balanceSantim)} <span className="text-lg text-[#ffa800] font-bold">ETB</span>
         </div>
-        <span className="text-[11px] text-[#7e92b4]">
-          {balanceSantim.toLocaleString()} santim • Live Ardi Desk Ledger
-        </span>
       </div>
 
       {/* Transaction History */}
       <div className="space-y-2">
         <h2 className="text-sm font-bold text-white font-serif tracking-wide">
-          Recent Transactions
+          Transactions
         </h2>
 
         {loading ? (
           <div className="rounded-2xl bg-[#0e1a32] border border-[#1b2d50] p-6 text-center text-xs text-[#7e92b4]">
-            Loading ledger...
+            Loading...
           </div>
         ) : transactions.length === 0 ? (
           <div className="rounded-2xl bg-[#0e1a32] border border-[#1b2d50] p-6 text-center text-xs text-[#7e92b4]">
-            No bets or payouts yet in this ledger. Join a parlor to play!
+            No transactions yet.
           </div>
         ) : (
           <div className="space-y-2">

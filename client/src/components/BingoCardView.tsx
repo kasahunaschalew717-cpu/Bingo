@@ -82,13 +82,10 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
   return (
     <div className="relative w-full max-w-sm mx-auto rounded-3xl bg-gradient-to-b from-[#101e38] via-[#0b162b] to-[#081020] border border-[#223963] shadow-[0_14px_34px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.07)] overflow-hidden">
       {/* Top Ticket Stub Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#0c172c] border-b border-dashed border-[#213760]">
-        <div className="flex items-center gap-2">
-          <span className="px-2 py-0.5 rounded-md bg-[#ffa800]/15 border border-[#ffa800]/40 text-[#ffa800] text-[11px] font-black tracking-wide font-mono">
-            TICKET {card.id}
-          </span>
-          <span className="text-[11px] font-semibold text-[#7e92b4]">Any Line</span>
-        </div>
+      <div className="flex items-center justify-between px-4 py-2 bg-[#0c172c] border-b border-dashed border-[#213760]">
+        <span className="px-2 py-0.5 rounded-md bg-[#ffa800]/15 border border-[#ffa800]/40 text-[#ffa800] text-[11px] font-black tracking-wide font-mono">
+          {card.id}
+        </span>
 
         <div className="flex items-center gap-1.5">
           {hasWin ? (
