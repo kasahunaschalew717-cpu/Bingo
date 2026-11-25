@@ -67,34 +67,37 @@ class SoundService {
 
   /**
    * Call from any user click/tap to unlock mobile WebView audio playback.
+   * Retries until playback unlock actually succeeds.
    */
   unlockAudio() {
     if (this.unlocked || typeof window === 'undefined') return;
-    this.unlocked = true;
     try {
       const ctx = this.getContext();
       if (ctx && ctx.state === 'suspended') {
         ctx.resume().catch(() => {});
       }
-      // Prime reusable HTMLAudioElement silently on user gesture
       const audio = this.getVoiceAudio();
       if (audio) {
         audio.muted = true;
         audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-        audio.play()
-          .then(() => {
+        const p = audio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
             audio.pause();
             audio.muted = false;
-          })
-          .catch(() => {
+            this.unlocked = true;
+          }).catch(() => {
             audio.muted = false;
           });
+        } else {
+          this.unlocked = true;
+        }
       }
       if ('speechSynthesis' in window) {
         window.speechSynthesis.getVoices();
       }
     } catch {
-      // Ignore unlock errors
+      // Retry on next interaction
     }
   }
 
@@ -166,16 +169,26 @@ class SoundService {
     }
 
     try {
+      let fallbackTriggered = false;
+      const triggerFallbackOnce = () => {
+        if (fallbackTriggered) return;
+        fallbackTriggered = true;
+        this.speakFallback(fallbackText);
+      };
+
       audio.pause();
       audio.currentTime = 0;
       audio.muted = false;
       audio.volume = 1.0;
+      audio.onerror = () => triggerFallbackOnce();
       audio.src = url;
-      audio.onerror = () => this.speakFallback(fallbackText);
+
       const promise = audio.play();
       if (promise && typeof promise.catch === 'function') {
-        promise.catch(() => {
-          this.speakFallback(fallbackText);
+        promise.catch((err: unknown) => {
+          // Ignore AbortError when a newer ball call supersedes an earlier loading clip
+          if (err instanceof Error && err.name === 'AbortError') return;
+          triggerFallbackOnce();
         });
       }
     } catch {

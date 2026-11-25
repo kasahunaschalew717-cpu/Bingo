@@ -247,6 +247,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   };
 
   const handleToggleCell = (cell: BingoCell) => {
+    sound.unlockAudio();
     if (cell.isFree || spectating) return;
     if (!drawnNumbers.has(cell.number)) {
       setClaimFeedback(`Number ${cell.number} has not been called yet!`);
@@ -273,6 +274,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
   };
 
   const handleClaimBingo = () => {
+    sound.unlockAudio();
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'CLAIM_BINGO', tierId }));
     }
