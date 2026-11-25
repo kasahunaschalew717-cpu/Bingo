@@ -15,6 +15,7 @@ import type { RoomState, BingoCard, BingoCell, WinnerInfo, Ball } from '../types
 import { BingoCardView } from './BingoCardView';
 import { WinnerModal } from './WinnerModal';
 import { TicketPickerModal } from './TicketPickerModal';
+import { BingoBall3D } from './BingoEmblem';
 import { sound } from '../services/sound';
 import { notifyParentBalanceChange } from '../services/postMessageBridge';
 import { formatETB } from '../utils/currency';
@@ -160,7 +161,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
               setSpectating(false);
               balanceCbRef.current(msg.balance);
               notifyParentBalanceChange();
-              setBannerNotice(`🎟️ Ticket confirmed! ${msg.stakeETB} ETB bet locked.`);
+              setBannerNotice(`Ticket confirmed — ${msg.stakeETB} ETB bet locked.`);
               setTimeout(() => setBannerNotice(null), 3500);
               break;
 
@@ -169,7 +170,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
               if (typeof msg.balance === 'number') {
                 balanceCbRef.current(msg.balance);
               }
-              setBannerNotice(`⚠️ ${msg.message}`);
+              setBannerNotice(msg.message);
               break;
 
             case 'BALL_DRAWN': {
@@ -214,7 +215,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
             case 'CLAIM_RESULT': {
               if (msg.success) {
                 sound.playBingoCall();
-                setClaimFeedback('⭐ Bingo Claimed! Any Line Verified!');
+                setClaimFeedback('Bingo Claimed! Any Line Verified.');
               } else {
                 setClaimFeedback(msg.message || 'No complete line yet.');
               }
@@ -226,12 +227,12 @@ export const GameRoom: React.FC<GameRoomProps> = ({
               setDebited(false);
               balanceCbRef.current(msg.balance);
               notifyParentBalanceChange();
-              setBannerNotice(`↩️ ${msg.message || 'Round cancelled: Bet refunded.'}`);
+              setBannerNotice(msg.message || 'Round cancelled: Bet refunded.');
               setTimeout(() => setBannerNotice(null), 5000);
               break;
 
             case 'ERROR':
-              setBannerNotice(`⚠️ ${msg.message}`);
+              setBannerNotice(msg.message);
               break;
 
             default:
@@ -404,7 +405,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
       {/* Spectator / Queued notice */}
       {spectating && (
         <div className="mb-2 p-2.5 rounded-xl bg-[#00a3ff]/15 border border-[#00a3ff]/40 text-[#58c4ff] text-xs font-bold text-center">
-          👀 Round in Progress — You are queued for the next round!
+          Round in Progress — You are queued for the next round
         </div>
       )}
 
@@ -429,11 +430,10 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         {players.map((p) => (
           <span
             key={p.playerRef}
-            className={`px-2 py-1 rounded-lg text-[10px] font-semibold shrink-0 border ${
-              p.playerRef === playerRef
-                ? 'bg-[#ffa800]/15 border-[#ffa800]/50 text-[#ffa800]'
-                : 'bg-[#0e1a32] border-[#1b2d50] text-[#a0b0cb]'
-            }`}
+            className={`px-2 py-1 rounded-lg text-[10px] font-semibold shrink-0 border ${p.playerRef === playerRef
+              ? 'bg-[#ffa800]/15 border-[#ffa800]/50 text-[#ffa800]'
+              : 'bg-[#0e1a32] border-[#1b2d50] text-[#a0b0cb]'
+              }`}
           >
             {p.name}
             {p.spectating ? ' (Next)' : ''}
@@ -443,31 +443,30 @@ export const GameRoom: React.FC<GameRoomProps> = ({
 
       {/* 3. Game State Display */}
       {status === 'WAITING' || status === 'COUNTDOWN' || status === 'LOCKING' ? (
-        <div className="rounded-2xl bg-[#0e1a32] border border-[#1b2d50] p-4 text-center space-y-2.5 mb-3 shadow-md">
+        <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] p-4 text-center space-y-2.5 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
           <div className="flex items-center justify-center gap-2">
             <span
-              className={`w-2.5 h-2.5 rounded-full ${
-                status === 'COUNTDOWN' ? 'bg-[#00c070] animate-ping' : 'bg-[#ffa800] animate-pulse'
-              }`}
+              className={`w-2 h-2 rounded-full ${status === 'COUNTDOWN' ? 'bg-[#00c070] animate-ping' : 'bg-[#ffa800] animate-pulse'
+                }`}
             ></span>
-            <span className="text-xs font-bold text-[#7e92b4] uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-[#8ea4c9] uppercase tracking-wider">
               {status === 'LOCKING'
-                ? 'Locking Bets...'
+                ? 'Locking Bets'
                 : status === 'COUNTDOWN'
-                ? 'Starting Soon'
-                : `Waiting for Players (${roomState?.playerCount || 0}/${minPlayers})`}
+                  ? 'Round Starting'
+                  : `Waiting for Players (${roomState?.playerCount || 0}/${minPlayers})`}
             </span>
           </div>
 
-          <div className="text-3xl font-black text-white font-mono tracking-tight">
+          <div className="text-3xl font-black text-white tabular-nums tracking-tight">
             {status === 'COUNTDOWN'
               ? `${roomState?.countdown}s`
               : status === 'LOCKING'
-              ? '⏳'
-              : `${roomState?.playerCount || 0} / ${minPlayers}+`}
+                ? 'Locking...'
+                : `${roomState?.playerCount || 0} / ${minPlayers}+`}
           </div>
 
-          <p className="text-xs text-[#7e92b4]">
+          <p className="text-xs text-[#8ea4c9]">
             Win Condition: Complete <strong className="text-[#ffa800]">Any Line</strong> (Row, Column, or Diagonal) for 100% of the net pot.
           </p>
 
@@ -478,7 +477,7 @@ export const GameRoom: React.FC<GameRoomProps> = ({
                   setTicketSelectError(null);
                   setShowTicketPicker(true);
                 }}
-                className="px-4 py-2 rounded-full bg-[#ffa800] hover:bg-[#ffb820] active:scale-95 text-xs font-black text-black flex items-center gap-1.5 shadow-[0_2px_10px_rgba(255,168,0,0.35)] cursor-pointer transition-all"
+                className="px-4 py-2 rounded-full bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-xs font-black text-[#070e1b] flex items-center gap-1.5 shadow-[0_4px_12px_rgba(255,168,0,0.3)] cursor-pointer transition-all"
               >
                 <Ticket className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Select Ticket {ticketNumber ? `(#${ticketNumber})` : ''}</span>
@@ -488,19 +487,19 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         </div>
       ) : (
         /* PLAYING / Ball Caller View */
-        <div className="rounded-2xl bg-[#0e1a32] border border-[#1b2d50] p-3 mb-3 shadow-md">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-xs font-bold text-[#7e92b4] uppercase tracking-wider flex items-center gap-1">
+        <div className="rounded-2xl bg-gradient-to-b from-[#101e38] to-[#0a1426] border border-[#1f345c] p-3 mb-3 shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <div className="flex items-center justify-between mb-2.5 px-1">
+            <span className="text-[11px] font-bold text-[#8ea4c9] uppercase tracking-wider flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#ef4444] animate-pulse"></span>
               Live Ball Caller
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-[#00a3ff] font-bold">
+              <span className="text-[11px] font-bold tabular-nums text-[#00a3ff]">
                 {roomState?.drawnCount || 0} / 75
               </span>
               <button
                 onClick={() => setShowBoard(!showBoard)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#142648] border border-[#223d73] text-[10px] font-bold text-white cursor-pointer"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#142648] hover:bg-[#1a325e] border border-[#243f75] text-[10px] font-bold text-white cursor-pointer transition-colors"
               >
                 <Grid className="w-3 h-3 text-[#ffa800]" />
                 <span>{showBoard ? 'Hide' : 'Board'}</span>
@@ -509,32 +508,17 @@ export const GameRoom: React.FC<GameRoomProps> = ({
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-[#ffb800] via-[#e68a00] to-[#b35900] p-1 shadow-[0_0_16px_rgba(255,168,0,0.6)] flex items-center justify-center shrink-0">
-              <div className="w-full h-full rounded-full bg-gradient-to-b from-[#1a1200] to-[#070e1b] flex flex-col items-center justify-center text-white border border-[#ffa800]/50">
-                {currentBall ? (
-                  <>
-                    <span className="text-[10px] font-black text-[#ffa800] -mb-1">{currentBall.letter}</span>
-                    <span className="text-xl font-black text-white">{currentBall.number}</span>
-                  </>
-                ) : (
-                  <span className="text-xs text-[#7e92b4] font-bold">...</span>
-                )}
-              </div>
-            </div>
+            <BingoBall3D ball={currentBall || null} size="lg" />
 
-            <div className="flex-1 overflow-x-auto flex items-center gap-1.5 py-1">
-              {recentBalls.length > 0 ? (
+            <div className="flex-1 overflow-x-auto flex items-center gap-2 py-1">
+              {recentBalls.length > 1 ? (
                 recentBalls.slice(1, 6).map((b, i) => (
-                  <div
-                    key={`${b.letter}-${b.number}-${i}`}
-                    className="flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-[#091326] border border-[#1b2f54] shrink-0"
-                  >
-                    <span className="text-[8px] font-bold text-[#ffa800]">{b.letter}</span>
-                    <span className="text-xs font-black text-white">{b.number}</span>
-                  </div>
+                  <BingoBall3D key={`${b.letter}-${b.number}-${i}`} ball={b} size="sm" />
                 ))
               ) : (
-                <span className="text-xs text-[#526a91] italic">First ball incoming...</span>
+                <span className="text-xs text-[#647aa1] italic">
+                  {currentBall ? 'Previous balls appear here' : 'First ball incoming...'}
+                </span>
               )}
             </div>
           </div>
@@ -547,11 +531,10 @@ export const GameRoom: React.FC<GameRoomProps> = ({
                 return (
                   <div
                     key={n}
-                    className={`text-[9px] text-center py-0.5 rounded font-bold ${
-                      isCalled
-                        ? 'bg-[#ffa800] text-black'
-                        : 'bg-[#08101f] text-[#455a7e]'
-                    }`}
+                    className={`text-[9px] text-center py-0.5 rounded font-bold ${isCalled
+                      ? 'bg-[#ffa800] text-black'
+                      : 'bg-[#08101f] text-[#455a7e]'
+                      }`}
                   >
                     {n}
                   </div>
@@ -579,31 +562,29 @@ export const GameRoom: React.FC<GameRoomProps> = ({
         <div className="flex items-center justify-between px-1">
           <button
             onClick={() => setAutoDaub(!autoDaub)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-              autoDaub
-                ? 'bg-[#00a3ff]/20 border border-[#00a3ff] text-[#00a3ff]'
-                : 'bg-[#0e1a32] border border-[#1b2d50] text-[#7e92b4]'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${autoDaub
+              ? 'bg-[#00a3ff]/20 border border-[#00a3ff] text-[#00a3ff]'
+              : 'bg-[#0e1a32] border border-[#1b2d50] text-[#7e92b4]'
+              }`}
           >
             <Check className={`w-3.5 h-3.5 ${autoDaub ? 'opacity-100' : 'opacity-30'}`} />
             <span>Auto-Daub: {autoDaub ? 'ON' : 'OFF'}</span>
           </button>
 
-          <span className="text-[11px] text-[#7e92b4]">
-            {hasLineBingo ? '⭐ ANY LINE COMPLETE!' : 'Win: Any Row, Col, or Diag'}
+          <span className="text-[11px] text-[#7e92b4] font-semibold">
+            {hasLineBingo ? 'Any Line Ready to Claim' : 'Win: Any Row, Col, or Diag'}
           </span>
         </div>
 
         <button
           disabled={status !== 'PLAYING' || spectating || !debited}
           onClick={handleClaimBingo}
-          className={`w-full py-4 rounded-2xl font-black text-xl tracking-widest uppercase transition-all duration-150 flex items-center justify-center gap-2 shadow-2xl ${
-            hasLineBingo
-              ? 'bg-gradient-to-r from-[#ffa800] via-[#ffc030] to-[#ffa800] text-black shadow-[0_0_30px_rgba(255,168,0,0.9)] animate-pulse scale-[1.02] border-2 border-white cursor-pointer'
-              : status === 'PLAYING' && !spectating && debited
+          className={`w-full py-4 rounded-2xl font-black text-xl tracking-widest uppercase transition-all duration-150 flex items-center justify-center gap-2 shadow-2xl ${hasLineBingo
+            ? 'bg-gradient-to-r from-[#ffa800] via-[#ffc030] to-[#ffa800] text-black shadow-[0_0_30px_rgba(255,168,0,0.9)] animate-pulse scale-[1.02] border-2 border-white cursor-pointer'
+            : status === 'PLAYING' && !spectating && debited
               ? 'bg-[#ffa800] hover:bg-[#ffb820] text-black active:scale-95 shadow-[0_4px_16px_rgba(255,168,0,0.4)] cursor-pointer'
               : 'bg-[#15233e] text-[#4d6387] cursor-not-allowed border border-[#1b2d50]'
-          }`}
+            }`}
         >
           <Sparkles className="w-5 h-5 fill-current" />
           <span>{spectating ? 'WAITING NEXT ROUND' : 'BINGO!'}</span>

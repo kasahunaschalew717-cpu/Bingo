@@ -1,5 +1,5 @@
-import React from 'react';
-import { Star, Check } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Star, Flame } from 'lucide-react';
 import type { BingoCard, BingoCell } from '../types';
 import { sound } from '../services/sound';
 
@@ -12,12 +12,27 @@ interface BingoCardViewProps {
   interactive?: boolean;
 }
 
-const COLUMN_COLORS = {
-  B: 'text-[#ef4444] border-b-[#ef4444]',
-  I: 'text-[#ffa800] border-b-[#ffa800]',
-  N: 'text-[#00a3ff] border-b-[#00a3ff]',
-  G: 'text-[#00c070] border-b-[#00c070]',
-  O: 'text-[#a855f7] border-b-[#a855f7]'
+const COLUMN_STYLES = {
+  B: {
+    pill: 'bg-gradient-to-b from-[#ef4444] to-[#b91c1c] text-white shadow-[0_3px_10px_rgba(239,68,68,0.35)]',
+    ring: 'border-[#fca5a5]/40'
+  },
+  I: {
+    pill: 'bg-gradient-to-b from-[#ffb800] to-[#d97706] text-black shadow-[0_3px_10px_rgba(255,168,0,0.35)]',
+    ring: 'border-[#fde68a]/50'
+  },
+  N: {
+    pill: 'bg-gradient-to-b from-[#38bdf8] to-[#0284c7] text-white shadow-[0_3px_10px_rgba(0,163,255,0.35)]',
+    ring: 'border-[#bae6fd]/40'
+  },
+  G: {
+    pill: 'bg-gradient-to-b from-[#10b981] to-[#047857] text-white shadow-[0_3px_10px_rgba(0,192,112,0.35)]',
+    ring: 'border-[#a7f3d0]/40'
+  },
+  O: {
+    pill: 'bg-gradient-to-b from-[#a855f7] to-[#7e22ce] text-white shadow-[0_3px_10px_rgba(168,85,247,0.35)]',
+    ring: 'border-[#e9d5ff]/40'
+  }
 };
 
 export const BingoCardView: React.FC<BingoCardViewProps> = ({
@@ -30,82 +45,167 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
 }) => {
   const letters: ('B' | 'I' | 'N' | 'G' | 'O')[] = ['B', 'I', 'N', 'G', 'O'];
 
+  // Compute hot cells (1 number away from Any Line) and marked count
+  const { hotIndices, markedCount, bestLineProgress } = useMemo(() => {
+    const hot = new Set<number>();
+    let best = 0;
+    const isMarked = (idx: number) => card.cells[idx].isFree || markedIndices.has(idx);
+
+    const lines: number[][] = [];
+    for (let r = 0; r < 5; r++) lines.push([0, 1, 2, 3, 4].map((c) => r * 5 + c));
+    for (let c = 0; c < 5; c++) lines.push([0, 1, 2, 3, 4].map((r) => r * 5 + c));
+    lines.push([0, 6, 12, 18, 24]);
+    lines.push([4, 8, 12, 16, 20]);
+
+    for (const line of lines) {
+      const unmarked = line.filter((idx) => !isMarked(idx));
+      const progress = 5 - unmarked.length;
+      if (progress > best) best = progress;
+      if (unmarked.length === 1) {
+        hot.add(unmarked[0]);
+      }
+    }
+
+    const totalMarked = card.cells.filter((c) => c.isFree || markedIndices.has(c.index)).length;
+    return { hotIndices: hot, markedCount: totalMarked, bestLineProgress: best };
+  }, [card, markedIndices]);
+
   const handleCellClick = (cell: BingoCell) => {
     if (!interactive) return;
     sound.playDaub();
     onToggleCell(cell);
   };
 
+  const hasWin = winningCellIndices.size >= 5;
+  const isOneAway = !hasWin && bestLineProgress === 4;
+
   return (
-    <div className="w-full max-w-sm mx-auto bg-[#0a1324] rounded-2xl p-3 border border-[#1b2d4e] shadow-xl">
-      {/* Column Headers B - I - N - G - O */}
-      <div className="grid grid-cols-5 gap-1.5 mb-1.5">
-        {letters.map((letter) => (
-          <div
-            key={letter}
-            className={`py-1 text-center font-black text-sm tracking-wider uppercase border-b-2 bg-[#0e1c35] rounded-t-lg ${COLUMN_COLORS[letter]}`}
-          >
-            {letter}
-          </div>
-        ))}
+    <div className="relative w-full max-w-sm mx-auto rounded-3xl bg-gradient-to-b from-[#101e38] via-[#0b162b] to-[#081020] border border-[#223963] shadow-[0_14px_34px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.07)] overflow-hidden">
+      {/* Top Ticket Stub Bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#0c172c] border-b border-dashed border-[#213760]">
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-md bg-[#ffa800]/15 border border-[#ffa800]/40 text-[#ffa800] text-[11px] font-black tracking-wide font-mono">
+            TICKET {card.id}
+          </span>
+          <span className="text-[11px] font-semibold text-[#7e92b4]">Any Line</span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {hasWin ? (
+            <span className="px-2 py-0.5 rounded-full bg-[#00c070]/20 border border-[#00c070]/50 text-[#00c070] text-[10px] font-black uppercase tracking-wider">
+              Line Ready
+            </span>
+          ) : isOneAway ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ffa800]/20 border border-[#ffa800]/50 text-[#ffa800] text-[10px] font-black uppercase tracking-wider">
+              <Flame className="w-3 h-3 fill-[#ffa800]" />
+              1 Away
+            </span>
+          ) : (
+            <span className="text-[11px] font-bold text-[#7e92b4] tabular-nums">
+              {markedCount}/25
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* 5x5 Matrix of Cells */}
-      <div className="grid grid-cols-5 gap-1.5">
-        {card.cells.map((cell) => {
-          const isFree = cell.isFree;
-          const isDrawn = !isFree && drawnNumbers.has(cell.number);
-          const isMarked = isFree || markedIndices.has(cell.index);
-          const isWinning = winningCellIndices.has(cell.index);
+      {/* Ticket Perforation Side Notches */}
+      <div className="relative px-3.5 pt-3 pb-3.5">
+        <div className="absolute -left-2 -top-2 w-4 h-4 rounded-full bg-[#070e1b] border-r border-[#213760]"></div>
+        <div className="absolute -right-2 -top-2 w-4 h-4 rounded-full bg-[#070e1b] border-l border-[#213760]"></div>
 
-          return (
-            <button
-              key={cell.index}
-              disabled={!interactive}
-              onClick={() => handleCellClick(cell)}
-              className={`relative aspect-square flex flex-col items-center justify-center rounded-xl font-black text-base transition-all duration-150 select-none cursor-pointer ${
-                isWinning
-                  ? 'bg-gradient-to-br from-[#ffa800] to-[#e67300] text-black shadow-[0_0_14px_rgba(255,168,0,0.9)] scale-95 border-2 border-white animate-pulse'
-                  : isMarked
-                  ? 'bg-[#14294d] text-white border-2 border-[#ffa800] shadow-[inset_0_0_10px_rgba(255,168,0,0.3)]'
-                  : isDrawn
-                  ? 'bg-[#0f2142] text-[#00a3ff] border border-[#00a3ff]/60 hover:bg-[#152e5c] animate-pulse'
-                  : 'bg-[#0e1a32] text-white/90 border border-[#172b4c] hover:bg-[#132342] hover:border-[#1e3a6a]'
-              }`}
+        {/* Column Header Spheres: B - I - N - G - O */}
+        <div className="grid grid-cols-5 gap-2 mb-2.5">
+          {letters.map((letter) => (
+            <div
+              key={letter}
+              className={`h-8 rounded-xl border ${COLUMN_STYLES[letter].ring} ${COLUMN_STYLES[letter].pill} flex items-center justify-center font-black text-base tracking-widest`}
             >
-              {isFree ? (
-                <div className="flex flex-col items-center justify-center">
-                  <Star className="w-4 h-4 text-[#ffa800] fill-[#ffa800]" />
-                  <span className="text-[9px] font-extrabold tracking-tighter text-[#ffa800] mt-0.5">FREE</span>
-                </div>
-              ) : (
-                <>
-                  <span className={`text-base font-black ${isWinning ? 'text-black' : isMarked ? 'text-[#ffa800]' : 'text-white'}`}>
-                    {cell.number}
-                  </span>
+              {letter}
+            </div>
+          ))}
+        </div>
 
-                  {/* Stamp badge if marked and not free */}
-                  {isMarked && !isWinning && (
-                    <div className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[#ffa800] flex items-center justify-center">
-                      <Check className="w-2 h-2 text-black stroke-[3]" />
-                    </div>
-                  )}
+        {/* 5x5 Matrix of Tactile Tiles */}
+        <div className="grid grid-cols-5 gap-2">
+          {card.cells.map((cell) => {
+            const isFree = cell.isFree;
+            const isDrawn = !isFree && drawnNumbers.has(cell.number);
+            const isMarked = isFree || markedIndices.has(cell.index);
+            const isWinning = winningCellIndices.has(cell.index);
+            const isHot = !isMarked && hotIndices.has(cell.index);
 
-                  {/* Visual hint if number was drawn but not marked yet */}
-                  {isDrawn && !isMarked && (
-                    <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#00a3ff] animate-ping"></span>
-                  )}
-                </>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={cell.index}
+                type="button"
+                disabled={!interactive}
+                onClick={() => handleCellClick(cell)}
+                className={`relative aspect-square rounded-xl flex items-center justify-center transition-all duration-150 select-none ${
+                  interactive ? 'cursor-pointer active:scale-92' : 'cursor-default'
+                } ${
+                  isWinning
+                    ? 'bg-gradient-to-b from-[#ffc436] to-[#e68a00] border-2 border-[#fff3cc] shadow-[0_4px_14px_rgba(255,168,0,0.45)]'
+                    : isMarked
+                    ? 'bg-[#0c182e] border border-[#2a4575] shadow-[inset_0_2px_6px_rgba(0,0,0,0.5)]'
+                    : isDrawn
+                    ? 'bg-[#102446] border-2 border-[#00a3ff]/80 shadow-[0_2px_10px_rgba(0,163,255,0.2)] hover:bg-[#142d56]'
+                    : isHot
+                    ? 'bg-[#15223d] border border-[#ffa800]/55 shadow-[inset_0_1px_0_rgba(255,168,0,0.15)] hover:bg-[#1a2b4c]'
+                    : 'bg-[#0e1b33] border border-[#1a2d50] shadow-[0_2px_5px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.05)] hover:bg-[#132342] hover:border-[#243d6b]'
+                }`}
+              >
+                {isFree ? (
+                  <div
+                    className={`w-[82%] h-[82%] rounded-full flex flex-col items-center justify-center shadow-[inset_0_1px_2px_rgba(255,255,255,0.35),0_2px_6px_rgba(0,0,0,0.4)] ${
+                      isWinning
+                        ? 'bg-[#070e1b]/20'
+                        : 'bg-gradient-to-b from-[#ffb800] to-[#cc7a00] border border-[#ffe08a]/60'
+                    }`}
+                  >
+                    <Star
+                      className={`w-3.5 h-3.5 ${
+                        isWinning ? 'text-[#070e1b] fill-[#070e1b]' : 'text-[#070e1b] fill-[#070e1b]'
+                      }`}
+                    />
+                    <span className="text-[8px] font-black tracking-wider text-[#070e1b] leading-none mt-0.5">
+                      FREE
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Dauber Ink Stamp when Marked (not winning) */}
+                    {isMarked && !isWinning && (
+                      <div className="animate-daub absolute inset-1.5 rounded-full bg-gradient-to-b from-[#ffa800] to-[#d97706] border border-[#ffd875]/60 shadow-[inset_0_2px_3px_rgba(255,255,255,0.35),0_3px_8px_rgba(255,168,0,0.35)]" />
+                    )}
 
-      {/* Ticket Footer / ID */}
-      <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-[#15233e] px-1 text-[11px] text-[#7e92b4]">
-        <span>Ticket <strong className="text-white font-mono">{card.id}</strong></span>
-        <span className="text-[10px] text-[#ffa800] font-semibold">Standard 75-Ball</span>
+                    {/* Cell Numeral */}
+                    <span
+                      className={`relative z-10 text-[17px] font-black tabular-nums leading-none ${
+                        isWinning || isMarked
+                          ? 'text-[#070e1b]'
+                          : isDrawn
+                          ? 'text-[#58c4ff]'
+                          : 'text-white'
+                      }`}
+                    >
+                      {cell.number}
+                    </span>
+
+                    {/* Subtle Unmarked Called Indicator */}
+                    {isDrawn && !isMarked && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#00a3ff] shadow-[0_0_6px_#00a3ff]" />
+                    )}
+
+                    {/* Subtle 1-Away Target Dot */}
+                    {isHot && !isDrawn && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#ffa800]" />
+                    )}
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

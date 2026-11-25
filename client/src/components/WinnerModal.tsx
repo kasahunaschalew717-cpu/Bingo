@@ -53,7 +53,7 @@ export const WinnerModal: React.FC<WinnerModalProps> = ({
           </div>
 
           <h2 className="text-2xl font-black text-white font-serif mt-2">
-            {isCurrentUser ? '🎉 YOU WON!' : '🏆 BINGO WINNER!'}
+            {isCurrentUser ? 'YOU WON!' : 'BINGO WINNER'}
           </h2>
 
           <p className="text-sm font-bold text-[#7e92b4]">

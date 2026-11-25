@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Header } from './components/Header';
 import { Lobby } from './components/Lobby';
 import { GameRoom } from './components/GameRoom';
@@ -85,12 +86,11 @@ export function App() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#070e1b] text-white p-4">
-        <div className="relative w-16 h-16 mb-4">
-          <div className="absolute inset-0 rounded-full border-4 border-[#162746] animate-pulse"></div>
+        <div className="relative w-14 h-14 mb-4">
+          <div className="absolute inset-0 rounded-full border-4 border-[#162746]"></div>
           <div className="absolute inset-0 rounded-full border-4 border-t-[#ffa800] animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center text-2xl">🎱</div>
         </div>
-        <span className="text-sm font-bold text-[#7e92b4] tracking-widest uppercase">
+        <span className="text-xs font-bold text-[#8ea4c9] tracking-widest uppercase">
           Connecting to Ardi Game Zone...
         </span>
       </div>
@@ -100,8 +100,8 @@ export function App() {
   if (error || !session) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#070e1b] text-white p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-3xl mb-4">
-          ⚠️
+        <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-4">
+          <AlertTriangle className="w-8 h-8 text-red-400" />
         </div>
         <h2 className="text-xl font-bold font-serif mb-2">Session Required</h2>
         <p className="text-xs text-[#7e92b4] max-w-xs mb-6 leading-relaxed">{error}</p>

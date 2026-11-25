@@ -22,6 +22,14 @@ const RANGES = [
   { label: '76–100', start: 76, end: 100 }
 ];
 
+const PREVIEW_LETTERS = [
+  { letter: 'B', cls: 'bg-[#ef4444]/20 text-[#ef4444] border-[#ef4444]/40' },
+  { letter: 'I', cls: 'bg-[#ffa800]/20 text-[#ffa800] border-[#ffa800]/40' },
+  { letter: 'N', cls: 'bg-[#00a3ff]/20 text-[#00a3ff] border-[#00a3ff]/40' },
+  { letter: 'G', cls: 'bg-[#00c070]/20 text-[#00c070] border-[#00c070]/40' },
+  { letter: 'O', cls: 'bg-[#a855f7]/20 text-[#a855f7] border-[#a855f7]/40' }
+];
+
 export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
   poolSize = 100,
   currentTicketNumber,
@@ -59,17 +67,17 @@ export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-sm rounded-3xl bg-[#0a1324] border border-[#1b2f54] p-4 shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-[#0e1b33] to-[#081020] border border-[#223963] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.7)] flex flex-col max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Ticket className="w-5 h-5 text-[#ffa800]" />
-            <h3 className="text-base font-black text-white font-serif">Select Your Ticket</h3>
+            <h3 className="text-base font-bold text-white font-serif tracking-wide">Select Your Ticket</h3>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-[#13223f] flex items-center justify-center text-[#7e92b4] hover:text-white cursor-pointer"
+            className="w-7 h-7 rounded-full bg-[#13223f] border border-[#1f355e] flex items-center justify-center text-[#8ea4c9] hover:text-white cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -81,10 +89,10 @@ export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
             <button
               key={r.label}
               onClick={() => setPageIdx(idx)}
-              className={`py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`py-1.5 rounded-xl text-xs font-bold tabular-nums transition-all cursor-pointer ${
                 pageIdx === idx
-                  ? 'bg-[#ffa800] text-black font-black shadow-sm'
-                  : 'bg-[#0e1a32] border border-[#1b2d50] text-[#7e92b4] hover:text-white'
+                  ? 'bg-[#ffa800] text-[#070e1b] font-black shadow-[0_2px_8px_rgba(255,168,0,0.3)]'
+                  : 'bg-[#0b1528] border border-[#1a2c4f] text-[#8ea4c9] hover:text-white'
               }`}
             >
               {r.label}
@@ -105,14 +113,14 @@ export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
                 key={num}
                 disabled={takenByOther}
                 onClick={() => setSelectedNum(num)}
-                className={`relative py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-0.5 ${
+                className={`relative py-2 rounded-xl text-xs font-black tabular-nums transition-all flex items-center justify-center ${
                   takenByOther
-                    ? 'bg-[#08101e] border border-[#15223b] text-[#3f5275] cursor-not-allowed'
+                    ? 'bg-[#070e1b] border border-[#142038] text-[#3f5275] cursor-not-allowed'
                     : isFocused
-                    ? 'bg-[#ffa800] text-black border-2 border-white shadow-[0_0_10px_rgba(255,168,0,0.6)] cursor-pointer'
+                    ? 'bg-gradient-to-b from-[#ffb800] to-[#e69500] text-[#070e1b] border border-[#ffe08a] shadow-[0_3px_10px_rgba(255,168,0,0.4)] cursor-pointer'
                     : isMine
-                    ? 'bg-[#1a3360] text-[#ffa800] border border-[#ffa800] cursor-pointer'
-                    : 'bg-[#0e1a32] hover:bg-[#15284a] text-white border border-[#1b2d50] cursor-pointer'
+                    ? 'bg-[#172f59] text-[#ffa800] border border-[#ffa800]/70 cursor-pointer'
+                    : 'bg-[#0e1c36] hover:bg-[#15284c] text-white border border-[#1b2f54] cursor-pointer'
                 }`}
               >
                 {takenByOther ? (
@@ -126,46 +134,51 @@ export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-center gap-4 text-[10px] text-[#7e92b4] mb-3">
-          <span className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-4 text-[10px] text-[#8ea4c9] mb-3">
+          <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded bg-[#ffa800]"></span> Selected
           </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded bg-[#0e1a32] border border-[#1b2d50]"></span> Available
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded bg-[#0e1c36] border border-[#1b2f54]"></span> Available
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <Lock className="w-2.5 h-2.5 text-[#465b80]" /> Taken
           </span>
         </div>
 
         {/* Live 5x5 Preview of Selected Ticket */}
         {previewCard && previewCard.ticketNumber === selectedNum && (
-          <div className="rounded-2xl bg-[#070e1b] border border-[#16294a] p-2.5 mb-3">
-            <div className="flex items-center justify-between mb-1.5 px-1">
-              <span className="text-[11px] font-bold text-white">
-                Preview <span className="text-[#ffa800]">#{selectedNum}</span>
+          <div className="rounded-2xl bg-[#070e1b] border border-[#1c3057] p-3 mb-3 shadow-inner">
+            <div className="flex items-center justify-between mb-2 px-0.5">
+              <span className="text-[11px] font-bold text-white font-mono">
+                TICKET <span className="text-[#ffa800]">#{selectedNum}</span>
               </span>
-              {previewTakenBy && (
+              {previewTakenBy ? (
                 <span className="text-[10px] font-bold text-red-400">Taken by {previewTakenBy}</span>
+              ) : (
+                <span className="text-[10px] font-semibold text-[#00c070]">Available</span>
               )}
             </div>
 
-            <div className="grid grid-cols-5 gap-1 mb-1 text-center text-[10px] font-black">
-              <span className="text-[#ef4444]">B</span>
-              <span className="text-[#ffa800]">I</span>
-              <span className="text-[#00a3ff]">N</span>
-              <span className="text-[#00c070]">G</span>
-              <span className="text-[#a855f7]">O</span>
+            <div className="grid grid-cols-5 gap-1.5 mb-1.5">
+              {PREVIEW_LETTERS.map((col) => (
+                <div
+                  key={col.letter}
+                  className={`py-0.5 rounded-md border text-center text-[10px] font-black ${col.cls}`}
+                >
+                  {col.letter}
+                </div>
+              ))}
             </div>
 
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-5 gap-1.5">
               {previewCard.cells.map((c) => (
                 <div
                   key={c.index}
-                  className={`py-1.5 rounded-lg text-center text-xs font-bold flex items-center justify-center ${
+                  className={`py-1.5 rounded-lg text-center text-xs font-bold tabular-nums flex items-center justify-center ${
                     c.isFree
-                      ? 'bg-[#1a2b4c] text-[#ffa800]'
-                      : 'bg-[#0e1a32] text-white/90 border border-[#17284a]'
+                      ? 'bg-[#ffa800]/20 border border-[#ffa800]/45 text-[#ffa800]'
+                      : 'bg-[#0e1a32] text-white/95 border border-[#182b4d]'
                   }`}
                 >
                   {c.isFree ? <Star className="w-3 h-3 fill-[#ffa800]" /> : c.number}
@@ -188,7 +201,7 @@ export const TicketPickerModal: React.FC<TicketPickerModalProps> = ({
           className={`w-full py-3 rounded-2xl font-black text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all ${
             isTakenByOther
               ? 'bg-[#15233e] text-[#4d6387] cursor-not-allowed'
-              : 'bg-[#ffa800] hover:bg-[#ffb820] active:scale-95 text-black shadow-lg cursor-pointer'
+              : 'bg-gradient-to-b from-[#ffb800] to-[#e69500] hover:from-[#ffc629] hover:to-[#ffa800] active:scale-95 text-[#070e1b] shadow-[0_4px_14px_rgba(255,168,0,0.35)] cursor-pointer'
           }`}
         >
           <Check className="w-4 h-4 stroke-[3]" />
