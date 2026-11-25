@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wallet, ArrowDownLeft, ArrowUpRight, RotateCcw, RefreshCw } from 'lucide-react';
+import { Wallet, ArrowDownLeft, ArrowUpRight, RotateCcw, RefreshCw, ArrowLeft } from 'lucide-react';
 import type { TransactionRecord } from '../types';
 import { formatETB } from '../utils/currency';
 import { notifyParentBalanceChange } from '../services/postMessageBridge';
@@ -8,12 +8,14 @@ interface WalletTabProps {
   token: string;
   balanceSantim: number;
   onBalanceUpdated: (newBalance: number) => void;
+  onBack: () => void;
 }
 
 export const WalletTab: React.FC<WalletTabProps> = ({
   token,
   balanceSantim,
-  onBalanceUpdated
+  onBalanceUpdated,
+  onBack
 }) => {
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,17 @@ export const WalletTab: React.FC<WalletTabProps> = ({
   }, [token]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4 max-w-md mx-auto w-full">
+    <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4 max-w-md mx-auto w-full">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0e1a32] border border-[#1b2f54] text-xs font-bold text-[#7e92b4] hover:text-white cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Parlors</span>
+        </button>
+      </div>
+
       {/* Wallet Summary Card */}
       <div className="rounded-2xl bg-gradient-to-br from-[#0e1e3d] to-[#0a1426] border border-[#1b2f54] p-4 shadow-lg">
         <div className="flex items-center justify-between mb-2">

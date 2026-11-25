@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Lobby } from './components/Lobby';
 import { GameRoom } from './components/GameRoom';
-import { BottomNav } from './components/BottomNav';
 import { WalletTab } from './components/WalletTab';
 import { ProfileTab } from './components/ProfileTab';
 import { requestCloseGame } from './services/postMessageBridge';
@@ -13,7 +12,7 @@ export function App() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [tiers, setTiers] = useState<RoomTierSummary[]>([]);
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<'home' | 'games' | 'wallet' | 'profile'>('home');
+  const [activeView, setActiveView] = useState<'lobby' | 'history' | 'rules'>('lobby');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +23,6 @@ export function App() {
     async function initSession() {
       try {
         setLoading(true);
-        // Check server health/mode if no token was passed in URL
         let effectiveToken = urlToken || '';
         if (!effectiveToken) {
           const healthRes = await fetch('/health');
@@ -144,25 +142,26 @@ export function App() {
           onBackToLobby={() => setSelectedTierId(null)}
           onBalanceUpdated={handleBalanceUpdated}
         />
+      ) : activeView === 'history' ? (
+        <WalletTab
+          token={token}
+          balanceSantim={session.balance}
+          onBalanceUpdated={handleBalanceUpdated}
+          onBack={() => setActiveView('lobby')}
+        />
+      ) : activeView === 'rules' ? (
+        <ProfileTab
+          session={session}
+          onBack={() => setActiveView('lobby')}
+        />
       ) : (
-        <>
-          {currentTab === 'wallet' ? (
-            <WalletTab
-              token={token}
-              balanceSantim={session.balance}
-              onBalanceUpdated={handleBalanceUpdated}
-            />
-          ) : currentTab === 'profile' ? (
-            <ProfileTab session={session} />
-          ) : (
-            <Lobby
-              tiers={tiers}
-              onSelectTier={(tierId) => setSelectedTierId(tierId)}
-              playerBalanceSantim={session.balance}
-            />
-          )}
-          <BottomNav currentTab={currentTab} onTabChange={setCurrentTab} />
-        </>
+        <Lobby
+          tiers={tiers}
+          onSelectTier={(tierId) => setSelectedTierId(tierId)}
+          playerBalanceSantim={session.balance}
+          onOpenHistory={() => setActiveView('history')}
+          onOpenRules={() => setActiveView('rules')}
+        />
       )}
     </div>
   );

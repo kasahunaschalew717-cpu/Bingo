@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Sparkles, Users, Trophy, Clock } from 'lucide-react';
+import { ArrowRight, Sparkles, Users, Trophy, Clock, History, BookOpen } from 'lucide-react';
 import type { RoomTierSummary } from '../types';
 import { formatETB } from '../utils/currency';
 
@@ -7,17 +7,21 @@ interface LobbyProps {
   tiers: RoomTierSummary[];
   onSelectTier: (tierId: string) => void;
   playerBalanceSantim: number;
+  onOpenHistory: () => void;
+  onOpenRules: () => void;
 }
 
 export const Lobby: React.FC<LobbyProps> = ({
   tiers,
   onSelectTier,
-  playerBalanceSantim
+  playerBalanceSantim,
+  onOpenHistory,
+  onOpenRules
 }) => {
   const totalOnline = tiers.reduce((sum, t) => sum + (t.playerCount || 0), 0);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4 max-w-md mx-auto w-full">
+    <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4 max-w-md mx-auto w-full">
       {/* 1. Feature Banner (Ardi Game Zone Style) */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0047b3] via-[#092654] to-[#0a152e] border border-[#163a75] p-4 text-white shadow-lg">
         <div className="absolute -top-10 -right-10 w-36 h-36 bg-[#00a3ff]/20 rounded-full blur-2xl pointer-events-none"></div>
@@ -53,9 +57,22 @@ export const Lobby: React.FC<LobbyProps> = ({
         <h1 className="text-lg font-bold text-white font-serif tracking-wide">
           Parlor Games
         </h1>
-        <span className="text-xs font-bold text-[#ffa800] tracking-wider uppercase">
-          Quick Match
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenHistory}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0e1a32] hover:bg-[#15284a] border border-[#1b2d50] text-[11px] font-bold text-[#7e92b4] hover:text-white cursor-pointer transition-colors"
+          >
+            <History className="w-3 h-3 text-[#00a3ff]" />
+            <span>History</span>
+          </button>
+          <button
+            onClick={onOpenRules}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#0e1a32] hover:bg-[#15284a] border border-[#1b2d50] text-[11px] font-bold text-[#ffa800] cursor-pointer transition-colors"
+          >
+            <BookOpen className="w-3 h-3" />
+            <span>Rules</span>
+          </button>
+        </div>
       </div>
 
       {/* 3. Quick-Match Tiers (5, 10, 25, 50, 100 ETB) */}

@@ -1,15 +1,26 @@
 import React from 'react';
-import { User, ShieldCheck, BookOpen, LogOut } from 'lucide-react';
+import { User, ShieldCheck, BookOpen, LogOut, ArrowLeft } from 'lucide-react';
 import type { SessionData } from '../types';
 import { requestCloseGame } from '../services/postMessageBridge';
 
 interface ProfileTabProps {
   session: SessionData;
+  onBack: () => void;
 }
 
-export const ProfileTab: React.FC<ProfileTabProps> = ({ session }) => {
+export const ProfileTab: React.FC<ProfileTabProps> = ({ session, onBack }) => {
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4 max-w-md mx-auto w-full">
+    <div className="flex-1 overflow-y-auto px-4 py-4 pb-8 space-y-4 max-w-md mx-auto w-full">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0e1a32] border border-[#1b2f54] text-xs font-bold text-[#7e92b4] hover:text-white cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Parlors</span>
+        </button>
+      </div>
+
       {/* Player Identity Card */}
       <div className="rounded-2xl bg-[#0e1a32] border border-[#1b2d50] p-4 shadow-md flex items-center gap-3.5">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#ffb800] to-[#e68a00] flex items-center justify-center text-black shrink-0 shadow-lg">
