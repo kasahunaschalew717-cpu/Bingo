@@ -123,15 +123,25 @@ export function App() {
     );
   }
 
+  const isEmbeddedInArdi = (() => {
+    try {
+      return typeof window !== 'undefined' && window.self !== window.top;
+    } catch {
+      return true;
+    }
+  })();
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-[#070e1b] to-[#0a1426] text-white font-sans antialiased selection:bg-[#ffa800] selection:text-black">
-      <Header
-        balanceSantim={session.balance}
-        token={token}
-        playerName={session.player.name}
-        mode={session.mode}
-        onBalanceUpdated={handleBalanceUpdated}
-      />
+      {!isEmbeddedInArdi && (
+        <Header
+          balanceSantim={session.balance}
+          token={token}
+          playerName={session.player.name}
+          mode={session.mode}
+          onBalanceUpdated={handleBalanceUpdated}
+        />
+      )}
 
       {selectedTierId ? (
         <GameRoom
